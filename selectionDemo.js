@@ -18,8 +18,8 @@ viewer.loadGUI(() => {
     content.html(`
         <h5> Middle Mouse Button to Draw Lasso Shape </h5>
         <div>
-            <input type="checkbox" id="lasso" name="lasso" value="lasso" unchecked>
-            <label for="lasso">Lasso Selection</label>
+            <input type="checkbox" id="lasso" name="lasso" value="lasso" checked>
+            <label for="lasso">Lasso Selection (No Function)</label>
         </div>
     `);
 
