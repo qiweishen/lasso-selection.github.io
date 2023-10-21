@@ -132,7 +132,7 @@ function lassoSelection() {
             isDrawing = false;
             lassoVertices.push(lassoVertices[0]);
             update3DLine();
-            // setTimeout(cleanLine, 200);  // 200ms后清除线条 remove line after 200ms
+            setTimeout(cleanLine, 200);  // 200ms后清除线条 remove line after 200ms
             // setTimeout(cleanPoints, 1200);  // 200ms后清除点 remove points after 200ms
             // selectPoints(vertices, pointCloud); // 开始选择点 start selecting points
             // getGridHelper(lassoVertices); // 显示网格辅助线 show grid helper
