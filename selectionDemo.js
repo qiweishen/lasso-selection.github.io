@@ -5,7 +5,11 @@ viewer.setPointBudget(1*1000*1000);
 viewer.loadSettingsFromURL();
 viewer.setDescription("");
 
-let toolMode = "None";
+// Global variables
+let selectionMode = "";
+let gridSize_test = 25; // unit: pixel on screen
+let addMode = false;
+let removeMode = false;
 
 viewer.loadGUI(() => {
     viewer.setLanguage('en');
@@ -16,21 +20,40 @@ viewer.loadGUI(() => {
     `);
     let content = section.last();
     content.html(`
-        <h5> Middle Mouse Button to Draw Lasso Shape </h5>
-        <div>
-            <input type="checkbox" id="lasso" name="lasso" value="lasso" checked>
-            <label for="lasso">Lasso Selection (No Function)</label>
-        </div>
+        <li>
+            <input type="checkbox" id="lasso" name="lasso" value="lasso" unchecked>
+            <label for="lasso">Lasso selection <b><font color=red>(No function)</font></b></label>
+        </li>
+
+        <br>
+        <div class="divider"><span>Selection parameters</span></div>
+        
+        <li>
+            <span>Selection grid size <b><font color=red>(No function)</font></b></span>: <span id="lblLassoSensitivity">5</span><div id="sldLassoSensitivity"></div>
+            <p>A slid bar to adjust the above int value.</p>
+        </li>
     `);
 
-    // 为复选框添加事件监听器 add event listener to checkbox
+    // Add event listener to checkbox
     $(document).ready(function() {
+        loadData(nothing);
         // jQuery 代码 jQuery code
         $("#lasso").change(function() {
             if (this.checked) {
-                toolMode = "lasso";
+                selectionMode = "lasso";
             } else {
-                toolMode = "None";
+                selectionMode = "None";
+            }
+        });
+
+        $("#sldLassoSensitivity").slider({
+            value: 5, // Default value
+            min: 1,
+            max: 10,
+            step: 1,
+            slide: function(event, ui) {
+                $("#lblLassoSensitivity").text(ui.value);
+                gridSize_test = ui.value;
             }
         });
     });
@@ -41,29 +64,21 @@ viewer.loadGUI(() => {
 
 
 
-
-
-// loadData(lassoSelection); // main function
 loadData(lassoSelection);
 
 
 
-
-
-
-// 加载点云数据 load point cloud data
+// Load point cloud data
 function loadData(callback){
     let scene = viewer.scene;
     Potree.loadPointCloud("./Potree_1.7/pointclouds/lion_takanawa/cloud.js", "lion", (data) => {
-        // data.pointcloud.renderOrder = 2;
         scene.addPointCloud(data.pointcloud);
-        
-        // 设置点云的材质 set point cloud material
+        // Set point cloud material
         let material = data.pointcloud.material;
         material.size = 1;
-        material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
-
-        // 使点云适应屏幕大小 make point cloud fit to screen
+        // material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
+        material.pointSizeType = Potree.PointSizeType.FIXED;
+        // Make point cloud fit to screen
         viewer.fitToScreen();
 
         if (callback) {
@@ -73,37 +88,56 @@ function loadData(callback){
 }
 
 
+function nothing() {
+    return;
+}
 
-// 绘制多边形 lasso selection
+
+// Lasso selection
 function lassoSelection() {
     let isDrawing = false;
-    let initialPoint = null;
     
     let lassoVertices = [];
     const lineGeometry = new THREE.BufferGeometry();
     const lineMaterial = new THREE.LineBasicMaterial({
-        color: 0xff0000, // 线条颜色为红色 set line color to red
-        linewidth: 2
+        color: 0xff0000, // Set line color to red
+        linewidth: 2,
+        side: THREE.DoubleSide
     });
     const lasso = new THREE.Line(lineGeometry, lineMaterial);
-    // lasso.renderOrder = 1;
 
     let selected3DPoints = [];
     const PointGeometry = new THREE.BufferGeometry();
     const PointMaterial = new THREE.PointsMaterial({
         color: 0xffff00,
-        size: 0.024
+        size: 4,
+        sizeAttenuation: false
     });
     const points = new THREE.Points(PointGeometry, PointMaterial);
-    // points.renderOrder = 1;
     
+    let add3DPoints = [];
+    let remove3DPoints = [];
+
+    let mouseTrajectory = [];
     let pointCloud = viewer.scene.pointclouds[0];
 
     viewer.renderer.domElement.addEventListener("mousedown", (event) => {
-        if (event.button === 1) { // 鼠标中键控制 middle mouse button
+        if (event.button === 1) { // Middle mouse button
             isDrawing = true;
-            lassoVertices = [];
-            viewer.scene.scene.add(lasso);
+
+            if (addMode) {
+                add3DPoints = [];
+                lassoVertices = [];
+                viewer.scene.scene.add(lasso);
+
+            } else if (removeMode) {
+                remove3DPoints = [];
+
+            } else {
+
+            }
+
+            
 
             selected3DPoints = [];
             viewer.scene.scene.add(points);
@@ -114,15 +148,9 @@ function lassoSelection() {
         if (isDrawing) {
             const vertices = get3DPoint_V1(event);
             if (vertices) {
-                lassoVertices.push(vertices);
+                lassoVertices.push(vertices.point3D);
+                mouseTrajectory.push(vertices.mouse);
                 update3DLine();
-            }
-
-            const point = get3DPoint_V2(event);
-            if (point) {
-                selected3DPoints.push(point);
-                selected3DPoints = filterUniquePoints(selected3DPoints);
-                update3DPoints();
             }
         }
     });
@@ -132,12 +160,27 @@ function lassoSelection() {
             isDrawing = false;
             lassoVertices.push(lassoVertices[0]);
             update3DLine();
-            setTimeout(cleanLine, 200);  // 200ms后清除线条 remove line after 200ms
-            // setTimeout(cleanPoints, 1200);  // 200ms后清除点 remove points after 200ms
-            // selectPoints(vertices, pointCloud); // 开始选择点 start selecting points
-            // getGridHelper(lassoVertices); // 显示网格辅助线 show grid helper
-            console.log("Lasso: ", lassoVertices);
-            console.log("Selected: ", selected3DPoints);
+
+            mouseTrajectory = removeDuplicatePoints(mouseTrajectory)
+            console.log("Number of mouse trajectory points:", mouseTrajectory.length);
+            raysFromMouse = getRaysInsideLasso();
+            console.log("Number of rays from mouse:", raysFromMouse.length);
+            for (let i = 0; i < raysFromMouse.length; i++) {
+                const mouse = raysFromMouse[i];
+                intersectedPoint = get3DPoint_V2(mouse);
+                if (intersectedPoint) {
+                    selected3DPoints.push(intersectedPoint);
+                }
+            }
+            selected3DPoints = removeDuplicatePoints(selected3DPoints);
+            update3DPoints();
+
+            setTimeout(cleanLine, 200);  // Remove line after 200ms
+            // setTimeout(cleanPoints, 1200);  // Remove points after 200ms
+            // selectPoints(vertices, pointCloud); // Start selecting points
+            // getGridHelper(lassoVertices); // Show grid helper
+            console.log("Lasso vertices: ", lassoVertices);
+            console.log("Selected points: ", selected3DPoints);
         }
     });
 
@@ -146,10 +189,11 @@ function lassoSelection() {
         const rect = viewer.renderer.domElement.getBoundingClientRect();
         const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
         const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        const mouse = new THREE.Vector2(event.clientX, event.clientY);
         
         const camera = viewer.scene.getActiveCamera();
-        const raycaster = new THREE.Raycaster();
-        raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+        const rayCaster = new THREE.Raycaster();
+        rayCaster.setFromCamera(new THREE.Vector2(x, y), camera);
 
         const targetPoint = new THREE.Vector3(0, 0, -1).unproject(camera);
         const planeNormal = new THREE.Vector3().subVectors(targetPoint, camera.position).normalize();
@@ -157,17 +201,20 @@ function lassoSelection() {
         const planePoint = camera.position.clone().add(planeNormal.clone().multiplyScalar(planeDistance));
         const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
 
-        const intersectionPoint = new THREE.Vector3();
-        const isIntersecting = raycaster.ray.intersectPlane(plane, intersectionPoint);
+        const point3D = new THREE.Vector3();
+        const isIntersecting = rayCaster.ray.intersectPlane(plane, point3D);
 
-        return intersectionPoint;
+        // console.log("Window coordinates:", mouse);
+        // console.log("Intersection point:", point3D);
+
+        return {point3D, mouse};
     }
 
     // Version 2: the vertices of lasso shape are on the 3D point cloud
-    function get3DPoint_V2(event) {
+    function get3DPoint_V2(mouse) {
         const rect = viewer.renderer.domElement.getBoundingClientRect();
-        const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-        const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        const x = ((mouse.x - rect.left) / rect.width) * 2 - 1;
+        const y = -((mouse.y - rect.top) / rect.height) * 2 + 1;
 
         const camera = viewer.scene.getActiveCamera();
         const raycaster = new THREE.Raycaster();
@@ -176,8 +223,8 @@ function lassoSelection() {
 
         let pickParams = {};
         pickParams.pickClipped = true;
-        pickParams.x = event.clientX - rect.left;
-        pickParams.y = rect.height - event.clientY;
+        pickParams.x = mouse.x - rect.left;
+        pickParams.y = rect.height - mouse.y;
 
         const point = pickPoint(pointCloud, viewer, camera, ray, pickParams);
         // console.log(point);
@@ -191,7 +238,8 @@ function lassoSelection() {
             positions.push(lassoVertices[i].x, lassoVertices[i].y, lassoVertices[i].z);
         }
         lineGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-        // lineGeometry.computeBoundingSphere();
+        lineGeometry.computeBoundingSphere();
+        lineGeometry.attributes.position.needsUpdate = true;
     }
 
     function update3DPoints() {
@@ -202,7 +250,31 @@ function lassoSelection() {
             positions[i * 3 + 2] = selected3DPoints[i].position.z;
         }
         PointGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-        // PointGeometry.computeBoundingSphere();
+        PointGeometry.computeBoundingSphere();
+    }
+
+    function getRaysInsideLasso() {
+        const gridSize = 1; // unit: pixel on screen
+
+        let raysFromMouse = [];
+        const boundingBox = new THREE.Box2().setFromPoints(mouseTrajectory);
+        const size = boundingBox.getSize(new THREE.Vector2());
+        console.log("Bounding box size:", size);
+        const x_step = Math.ceil(size.x / gridSize);
+        const y_step = Math.ceil(size.y / gridSize);
+
+        for (let i = 0; i < x_step; i++) {
+            for (let j = 0; j < y_step; j++) {
+                const x = boundingBox.min.x + i * gridSize;
+                const y = boundingBox.min.y + j * gridSize;
+                const point = new THREE.Vector2(x, y);
+                if (isPointInsidePolygon(point, mouseTrajectory)) {
+                    raysFromMouse.push(point);
+                }
+            }
+        }
+
+        return raysFromMouse;
     }
 
     function cleanLine() {
@@ -211,19 +283,6 @@ function lassoSelection() {
 
     function cleanPoints() {
         viewer.scene.scene.remove(points);
-    }
-
-    function getGridHelper(vertices) {
-        const planeDetails = calculateNormalAndCoplanarPoint(vertices);
-        const planeNormal = planeDetails.planeNormal;
-        const planePoint = planeDetails.avgPoint;
-        let gridHelper = new THREE.GridHelper(100, 100, 0x00ff00, 0x00ff00); // size and divisions can be adjusted as per need
-        let up = new THREE.Vector3(0, 1, 0);
-        let quaternion = new THREE.Quaternion().setFromUnitVectors(up, planeNormal);
-        gridHelper.quaternion.copy(quaternion);
-        gridHelper.position.copy(planePoint);
-        
-        viewer.scene.scene.add(gridHelper);
     }
     
 }
@@ -237,60 +296,20 @@ function lassoSelection() {
 
 
 // Useful functions
-function getMousePointCloudIntersection (mouse, camera, viewer, pointclouds, params = {}) {
-		
-    let rect = viewer.renderer.domElement.getBoundingClientRect();
-    
-    let nmouse = {
-        x: (mouse.x / rect.width) * 2 - 1,
-        y: -(mouse.y / rect.height) * 2 + 1
-    };
+function isPointInsidePolygon(point, vertices) {
+    let intersectCount = 0;
 
-    let pickParams = {};
+    for (let i = 0, j = vertices.length - 1; i < vertices.length; j = i++) {
+        const xi = vertices[i].x, yi = vertices[i].y;
+        const xj = vertices[j].x, yj = vertices[j].y;
 
-    if(params.pickClipped){
-        pickParams.pickClipped = params.pickClipped;
-    }
-
-    pickParams.x = mouse.x;
-    pickParams.y = rect.height - mouse.y;
-
-    let raycaster = new THREE.Raycaster();
-    raycaster.setFromCamera(nmouse, camera);
-    let ray = raycaster.ray;
-
-    let selectedPointcloud = null;
-    let closestDistance = Infinity;
-    let closestIntersection = null;
-    let closestPoint = null;
-    
-    for(let pointcloud of pointclouds){
-        let point = pointcloud.pick(viewer, camera, ray, pickParams);
-        
-        if(!point){
-            continue;
-        }
-
-        let distance = camera.position.distanceTo(point.position);
-
-        if (distance < closestDistance) {
-            closestDistance = distance;
-            selectedPointcloud = pointcloud;
-            closestIntersection = point.position;
-            closestPoint = point;
+        if (((yi > point.y) !== (yj > point.y)) &&
+            (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi)) {
+            intersectCount++;
         }
     }
 
-    if (selectedPointcloud) {
-        return {
-            location: closestIntersection,
-            distance: closestDistance,
-            pointcloud: selectedPointcloud,
-            point: closestPoint
-        };
-    } else {
-        return null;
-    }
+    return (intersectCount % 2 !== 0);
 }
 
 
@@ -323,39 +342,35 @@ function calculateNormalAndCoplanarPoint(vertices) {
 }
 
 
-function addPointsToScene(pointsList) {
-    let geometry = new THREE.BufferGeometry();
-    let positions = new Float32Array(pointsList.length * 3); // 每个点需要x, y, z坐标
-    for (let i = 0; i < pointsList.length; i++) {
-        positions[i * 3] = pointsList[i].x;
-        positions[i * 3 + 1] = pointsList[i].y;
-        positions[i * 3 + 2] = pointsList[i].z;
+function removeDuplicatePoints(points) {
+    const uniquePoints = [];
+    const seen = new Set();
+    // Set conditions for different point objects (point.x and point.position.x)
+    if (!points[0].position) {
+        for (let i = 0; i < points.length; i++) {
+            const key = `${points[i].x},${points[i].y},${points[i].z}`;  // Use stringified coordinates as key
+    
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniquePoints.push(points[i]);
+            }
+        }
+        return uniquePoints;
+    } else {
+        for (let i = 0; i < points.length; i++) {
+            const key = `${points[i].position.x},${points[i].position.y},${points[i].position.z}`;
+    
+            if (!seen.has(key)) {
+                seen.add(key);
+                uniquePoints.push(points[i]);
+            }
+        }
+        return uniquePoints;
     }
-    geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-    let material = new THREE.PointsMaterial({ color: 0xff0000, size: 0.023 });
-    let points = new THREE.Points(geometry, material);
-    viewer.scene.scene.add(points);
 }
 
 
-function arePointsEqual(pointA, pointB) {
-    const epsilon = 1e-3; // 0.001 for checking precision up to 3 decimal places
-
-    return Math.abs(pointA.x - pointB.x) < epsilon &&
-           Math.abs(pointA.y - pointB.y) < epsilon &&
-           Math.abs(pointA.z - pointB.z) < epsilon;
-}
-
-
-function filterUniquePoints(points) {
-    return points.filter((point, index) => {
-        return !points.some((otherPoint, otherIndex) => {
-            return otherIndex < index && arePointsEqual(point, otherPoint);
-        });
-    });
-}
-
-
+// Adapted from Potree source code (pointcloud.pick())
 function pickPoint(pointCloud, viewer, camera, ray, params = {}){
 
     let renderer = viewer.renderer;
@@ -584,191 +599,278 @@ function pickPoint(pointCloud, viewer, camera, ray, params = {}){
 };
 
 
-
-
-
-
-
-
-
-
-
-// Below is the old version of lasso selection
-
-function selectPoints(vertices, pointCloud) {
-    console.log("Number of Lasso shape vertices: ", vertices.length);
-    console.log("Point Cloud: ", pointCloud);
-
-    let pointsOn3DPlane = [];
-    let selectedPoints = [];
-
-    // 创建投影平面 create projection plane
+function getGridHelper(vertices) {
     const planeDetails = calculateNormalAndCoplanarPoint(vertices);
-    const plane = planeDetails.plane;
-    // console.log("First vertex:", vertices[0]);
-    // console.log("Plane normal length:", plane.normal.length());
-    // console.log("Plane coplane point:", plane.coplanarPoint());
-
-
-    // 将顶点投影到平面上 project vertices onto plane
-    let projectedVertices3D = vertices.map(v => projectPointOntoPlane(v, plane));
-    let projectedVertices2D = projectedVertices3D.map(v => to2DCoordinates(v, plane));
-
-    // 投影一个点到平面上 project a point onto the plane
-    function projectPointOntoPlane(point, plane) {
-        const coplanarPoint = new THREE.Vector3();
-        plane.coplanarPoint(coplanarPoint); // 获取共面点 get coplanar point
-
-        const toPoint = new THREE.Vector3().subVectors(point, coplanarPoint);
-        const distanceToPlane = toPoint.dot(plane.normal);
-        // console.log("Length of plane.normal:", plane.normal.length());
-        // console.log("Length of toPoint:", toPoint.length());
-        // console.log("Distance to plane:", distanceToPlane);
-        return point.clone().sub(plane.normal.clone().multiplyScalar(distanceToPlane));
-    }
-
-    // 将三维坐标转换为二维坐标 convert 3D coordinates to 2D coordinates
-    function to2DCoordinates(point3D, plane) {
-        const planePoint = new THREE.Vector3();
-        plane.coplanarPoint(planePoint); // 获取共面点 get coplanar point;
-
-        const xAxis = new THREE.Vector3(1, 0, 0);
-        const yAxis = new THREE.Vector3(0, 1, 0);
-        const planeX = plane.normal.clone().cross(yAxis).normalize(); 
-        const planeY = plane.normal.clone().cross(xAxis).normalize();
-        const diff = point3D.clone().sub(planePoint);
-        return new THREE.Vector2(diff.dot(planeX), diff.dot(planeY));
-    }
-
-    // 检查点是否在多边形内 check if point is inside polygon
-    function isPointInsidePolygon(point, polygonVertices) {
-        let inside = false;
-        for (let i = 0, j = polygonVertices.length - 1; i < polygonVertices.length; j = i++) {
-            let xi = polygonVertices[i].x, yi = polygonVertices[i].y;
-            let xj = polygonVertices[j].x, yj = polygonVertices[j].y;
+    const planeNormal = planeDetails.planeNormal;
+    const planePoint = planeDetails.avgPoint;
+    let gridHelper = new THREE.GridHelper(100, 100, 0x00ff00, 0x00ff00); // size and divisions can be adjusted as per need
+    let up = new THREE.Vector3(0, 1, 0);
+    let quaternion = new THREE.Quaternion().setFromUnitVectors(up, planeNormal);
+    gridHelper.quaternion.copy(quaternion);
+    gridHelper.position.copy(planePoint);
     
-            let intersect = ((yi > point.y) !== (yj > point.y)) && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
-            if (intersect) inside = !inside;
-        }
-        if (inside) {
-            console.log("Point", point);
-        }
-        return inside;
-    }
-
-    // 遍历八叉树中的所有点 traverse all points in Octree
-    // viewer.scene.pointclouds[0].root.children[0].children[0].children[0].geometryNode.geometry.attributes.position.array
-    // function traverseOctree(node, callback) {
-    //     console.log("Visiting node:", node.name);  // 打印每次访问的节点 print visited node
-    //     if (!node.isLoaded()) {
-    //         console.log("------------Node", node.name, "haven't loaded yet.");
-    //         let id = node.id;
-    //         let boundingSphere = node.getBoundingSphere();
-    //         let center = boundingSphere.center;
-    //         let radius = boundingSphere.radius;
-    //         callback({ id, center, radius });
-    //     } else if (node.children.every(child => child === undefined)) {
-    //         if (node.name.includes("r0")) {
-    //             console.log("++++++++++++Node", node.name, "has loaded.");
-    //             let positions = node.geometryNode.geometry.attributes.position;
-    //             if (positions) {
-    //                 let positionArray = positions.array;
-    //                 for (let i = 0; i < positionArray.length; i += 3) {
-    //                     let point = new THREE.Vector3(positionArray[i], positionArray[i + 1], positionArray[i + 2]);
-    //                     callback({ point });
-    //                 }
-    //             }
-    //         }
-    //     } else {
-    //         console.log("Node", node.name, "has children.");
-    //         for (let child of node.children) {
-    //             if (child !== undefined) {
-    //                 traverseOctree(child, callback);
-    //             }
-    //         }
-    //     }
-    // }
-
-    // // 遍历八叉树中的所有点 traverse all points in Octree
-    function traverseOctree(node, callback) {
-        // console.log("Visiting node:", node);  // 打印每次访问的节点 print visited node
-        if (node instanceof Potree.PointCloudOctreeNode) {
-            // console.log("Node is a PointCloudOctreeNode");
-            if (node.geometryNode) {
-                // console.log("PointCloudOctreeNode geometry:", node.geometryNode.geometry);
-                if (node.geometryNode.geometry.attributes && node.geometryNode.geometry.attributes.position) {
-                    // console.log("PointCloudOctreeNode has position attribute");
-                    callback(node);
-                }
-            }
-        }
-        
-        // 确保在遍历子节点前检查其是一个有效的数组 make sure to check if children is a valid array before traversing
-        if (node.children && Array.isArray(node.children)) {
-            for (let child of node.children) {
-                if (child) traverseOctree(child, callback);
-            }
-        }
-    }
-    
-
-    // 执行选择 select points
-    // traverseOctree(pointCloud.root, (details) => {
-    //     if (!details.point) {
-    //         let id = details.id;
-    //         let center = details.center;
-    //         let radius = details.radius;
-    //     } else {
-    //         let point = details.point;
-    //         let projectedPoint3D = projectPointOntoPlane(point, plane);
-    //         // console.log("Projected point:", projectedPoint3D);
-    //         pointsOn3DPlane.push(point);
-    //         selectedPoints.push(projectedPoint3D);
-    //         // let projectedPoint2D = to2DCoordinates(projectedPoint3D, plane);
-    //         // console.log("Projected point:", projectedPoint2D);
-    //         // if (isPointInsidePolygon(projectedPoint2D, projectedVertices2D)) {
-    //         //     selectedPoints.push(point);
-    //         // }
-    //     }
-    // });
-
-
-     // 执行选择 select points
-     traverseOctree(pointCloud.root, (node) => {
-        let positions;
-            
-        if (node instanceof Potree.PointCloudOctreeNode && node.geometryNode) {
-            positions = node.geometryNode.geometry.attributes.position;
-        } else if (node instanceof Potree.PointCloudOctreeGeometryNode) {
-            positions = node.geometry.attributes.position;
-            console.log("PointCloudOctreeGeometryNode")
-        }
-    
-        if (positions) {
-            let positionArray = positions.array;
-            
-            for (let i = 0; i < positionArray.length; i += 3) {
-                let point = new THREE.Vector3(positionArray[i], positionArray[i + 1], positionArray[i + 2]);
-                // console.log("Point:", point);
-                let projectedPoint3D = projectPointOntoPlane(point, plane);
-                pointsOn3DPlane.push(point);
-                // console.log("Projected point:", projectedPoint3D);
-                let projectedPoint2D = to2DCoordinates(projectedPoint3D, plane);
-                // console.log("Projected point:", projectedPoint2D);
-                if (isPointInsidePolygon(projectedPoint2D, projectedVertices2D)) {
-                    selectedPoints.push(point);
-                }
-            } 
-        }
-    });
-
-
-    console.log("Number of points on 3D plane: ", pointsOn3DPlane.length);
-
-    addPointsToScene(pointsOn3DPlane);
- 
-    console.log("Number of selected points: ", selectedPoints.length);
-
-    // TODO: 高亮显示选择的点 highlight selected points
-
+    viewer.scene.scene.add(gridHelper);
 }
+
+
+
+
+
+
+
+
+// // Below is the old version of lasso selection (Archived)
+
+
+// function getMousePointCloudIntersection (mouse, camera, viewer, pointclouds, params = {}) {
+//     let rect = viewer.renderer.domElement.getBoundingClientRect();
+//     let nmouse = {
+//         x: (mouse.x / rect.width) * 2 - 1,
+//         y: -(mouse.y / rect.height) * 2 + 1
+//     };
+//     let pickParams = {};
+
+//     if(params.pickClipped){
+//         pickParams.pickClipped = params.pickClipped;
+//     }
+
+//     pickParams.x = mouse.x;
+//     pickParams.y = rect.height - mouse.y;
+
+//     let raycaster = new THREE.Raycaster();
+//     raycaster.setFromCamera(nmouse, camera);
+//     let ray = raycaster.ray;
+
+//     let selectedPointcloud = null;
+//     let closestDistance = Infinity;
+//     let closestIntersection = null;
+//     let closestPoint = null;
+    
+//     for(let pointcloud of pointclouds){
+//         let point = pointcloud.pick(viewer, camera, ray, pickParams);
+//         if(!point){
+//             continue;
+//         }
+//         let distance = camera.position.distanceTo(point.position);
+//         if (distance < closestDistance) {
+//             closestDistance = distance;
+//             selectedPointcloud = pointcloud;
+//             closestIntersection = point.position;
+//             closestPoint = point;
+//         }
+//     }
+
+//     if (selectedPointcloud) {
+//         return {
+//             location: closestIntersection,
+//             distance: closestDistance,
+//             pointcloud: selectedPointcloud,
+//             point: closestPoint
+//         };
+//     } else {
+//         return null;
+//     }
+// }
+
+// function selectPoints(vertices, pointCloud) {
+//     console.log("Number of Lasso shape vertices: ", vertices.length);
+//     console.log("Point Cloud: ", pointCloud);
+
+//     let pointsOn3DPlane = [];
+//     let selectedPoints = [];
+
+//     // 创建投影平面 create projection plane
+//     const planeDetails = calculateNormalAndCoplanarPoint(vertices);
+//     const plane = planeDetails.plane;
+//     // console.log("First vertex:", vertices[0]);
+//     // console.log("Plane normal length:", plane.normal.length());
+//     // console.log("Plane coplane point:", plane.coplanarPoint());
+
+
+//     // 将顶点投影到平面上 project vertices onto plane
+//     let projectedVertices3D = vertices.map(v => projectPointOntoPlane(v, plane));
+//     let projectedVertices2D = projectedVertices3D.map(v => to2DCoordinates(v, plane));
+
+//     // 投影一个点到平面上 project a point onto the plane
+//     function projectPointOntoPlane(point, plane) {
+//         const coplanarPoint = new THREE.Vector3();
+//         plane.coplanarPoint(coplanarPoint); // 获取共面点 get coplanar point
+
+//         const toPoint = new THREE.Vector3().subVectors(point, coplanarPoint);
+//         const distanceToPlane = toPoint.dot(plane.normal);
+//         // console.log("Length of plane.normal:", plane.normal.length());
+//         // console.log("Length of toPoint:", toPoint.length());
+//         // console.log("Distance to plane:", distanceToPlane);
+//         return point.clone().sub(plane.normal.clone().multiplyScalar(distanceToPlane));
+//     }
+
+//     // 将三维坐标转换为二维坐标 convert 3D coordinates to 2D coordinates
+//     function to2DCoordinates(point3D, plane) {
+//         const planePoint = new THREE.Vector3();
+//         plane.coplanarPoint(planePoint); // 获取共面点 get coplanar point;
+
+//         const xAxis = new THREE.Vector3(1, 0, 0);
+//         const yAxis = new THREE.Vector3(0, 1, 0);
+//         const planeX = plane.normal.clone().cross(yAxis).normalize(); 
+//         const planeY = plane.normal.clone().cross(xAxis).normalize();
+//         const diff = point3D.clone().sub(planePoint);
+//         return new THREE.Vector2(diff.dot(planeX), diff.dot(planeY));
+//     }
+
+//     // 检查点是否在多边形内 check if point is inside polygon
+//     function isPointInsidePolygon(point, polygonVertices) {
+//         let inside = false;
+//         for (let i = 0, j = polygonVertices.length - 1; i < polygonVertices.length; j = i++) {
+//             let xi = polygonVertices[i].x, yi = polygonVertices[i].y;
+//             let xj = polygonVertices[j].x, yj = polygonVertices[j].y;
+    
+//             let intersect = ((yi > point.y) !== (yj > point.y)) && (point.x < (xj - xi) * (point.y - yi) / (yj - yi) + xi);
+//             if (intersect) inside = !inside;
+//         }
+//         if (inside) {
+//             console.log("Point", point);
+//         }
+//         return inside;
+//     }
+
+//     // 遍历八叉树中的所有点 traverse all points in Octree
+//     // viewer.scene.pointclouds[0].root.children[0].children[0].children[0].geometryNode.geometry.attributes.position.array
+//     // function traverseOctree(node, callback) {
+//     //     console.log("Visiting node:", node.name);  // 打印每次访问的节点 print visited node
+//     //     if (!node.isLoaded()) {
+//     //         console.log("------------Node", node.name, "haven't loaded yet.");
+//     //         let id = node.id;
+//     //         let boundingSphere = node.getBoundingSphere();
+//     //         let center = boundingSphere.center;
+//     //         let radius = boundingSphere.radius;
+//     //         callback({ id, center, radius });
+//     //     } else if (node.children.every(child => child === undefined)) {
+//     //         if (node.name.includes("r0")) {
+//     //             console.log("++++++++++++Node", node.name, "has loaded.");
+//     //             let positions = node.geometryNode.geometry.attributes.position;
+//     //             if (positions) {
+//     //                 let positionArray = positions.array;
+//     //                 for (let i = 0; i < positionArray.length; i += 3) {
+//     //                     let point = new THREE.Vector3(positionArray[i], positionArray[i + 1], positionArray[i + 2]);
+//     //                     callback({ point });
+//     //                 }
+//     //             }
+//     //         }
+//     //     } else {
+//     //         console.log("Node", node.name, "has children.");
+//     //         for (let child of node.children) {
+//     //             if (child !== undefined) {
+//     //                 traverseOctree(child, callback);
+//     //             }
+//     //         }
+//     //     }
+//     // }
+
+//     // // 遍历八叉树中的所有点 traverse all points in Octree
+//     function traverseOctree(node, callback) {
+//         // console.log("Visiting node:", node);  // 打印每次访问的节点 print visited node
+//         if (node instanceof Potree.PointCloudOctreeNode) {
+//             // console.log("Node is a PointCloudOctreeNode");
+//             if (node.geometryNode) {
+//                 // console.log("PointCloudOctreeNode geometry:", node.geometryNode.geometry);
+//                 if (node.geometryNode.geometry.attributes && node.geometryNode.geometry.attributes.position) {
+//                     // console.log("PointCloudOctreeNode has position attribute");
+//                     callback(node);
+//                 }
+//             }
+//         }
+        
+//         // 确保在遍历子节点前检查其是一个有效的数组 make sure to check if children is a valid array before traversing
+//         if (node.children && Array.isArray(node.children)) {
+//             for (let child of node.children) {
+//                 if (child) traverseOctree(child, callback);
+//             }
+//         }
+//     }
+    
+
+//     // 执行选择 select points
+//     // traverseOctree(pointCloud.root, (details) => {
+//     //     if (!details.point) {
+//     //         let id = details.id;
+//     //         let center = details.center;
+//     //         let radius = details.radius;
+//     //     } else {
+//     //         let point = details.point;
+//     //         let projectedPoint3D = projectPointOntoPlane(point, plane);
+//     //         // console.log("Projected point:", projectedPoint3D);
+//     //         pointsOn3DPlane.push(point);
+//     //         selectedPoints.push(projectedPoint3D);
+//     //         // let projectedPoint2D = to2DCoordinates(projectedPoint3D, plane);
+//     //         // console.log("Projected point:", projectedPoint2D);
+//     //         // if (isPointInsidePolygon(projectedPoint2D, projectedVertices2D)) {
+//     //         //     selectedPoints.push(point);
+//     //         // }
+//     //     }
+//     // });
+
+
+//      // 执行选择 select points
+//      traverseOctree(pointCloud.root, (node) => {
+//         let positions;
+            
+//         if (node instanceof Potree.PointCloudOctreeNode && node.geometryNode) {
+//             positions = node.geometryNode.geometry.attributes.position;
+//         } else if (node instanceof Potree.PointCloudOctreeGeometryNode) {
+//             positions = node.geometry.attributes.position;
+//             console.log("PointCloudOctreeGeometryNode")
+//         }
+    
+//         if (positions) {
+//             let positionArray = positions.array;
+            
+//             for (let i = 0; i < positionArray.length; i += 3) {
+//                 let point = new THREE.Vector3(positionArray[i], positionArray[i + 1], positionArray[i + 2]);
+//                 // console.log("Point:", point);
+//                 let projectedPoint3D = projectPointOntoPlane(point, plane);
+//                 pointsOn3DPlane.push(point);
+//                 // console.log("Projected point:", projectedPoint3D);
+//                 let projectedPoint2D = to2DCoordinates(projectedPoint3D, plane);
+//                 // console.log("Projected point:", projectedPoint2D);
+//                 if (isPointInsidePolygon(projectedPoint2D, projectedVertices2D)) {
+//                     selectedPoints.push(point);
+//                 }
+//             } 
+//         }
+//     });
+
+
+//     console.log("Number of points on 3D plane: ", pointsOn3DPlane.length);
+
+//     addPointsToScene(pointsOn3DPlane);
+ 
+//     console.log("Number of selected points: ", selectedPoints.length);
+
+//     // TODO: 高亮显示选择的点 highlight selected points
+
+// }
+
+
+// function addPointsToScene(pointsList) {
+//     let geometry = new THREE.BufferGeometry();
+//     let positions = new Float32Array(pointsList.length * 3); // 每个点需要x, y, z坐标
+//     for (let i = 0; i < pointsList.length; i++) {
+//         positions[i * 3] = pointsList[i].x;
+//         positions[i * 3 + 1] = pointsList[i].y;
+//         positions[i * 3 + 2] = pointsList[i].z;
+//     }
+//     geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+//     let material = new THREE.PointsMaterial({ color: 0xff0000, size: 0.023 });
+//     let points = new THREE.Points(geometry, material);
+//     viewer.scene.scene.add(points);
+// }
+
+
+// function arePointsEqual(pointA, pointB) {
+//     const epsilon = 1e-3; // 0.001 for checking precision up to 3 decimal places
+
+//     return Math.abs(pointA.x - pointB.x) < epsilon &&
+//            Math.abs(pointA.y - pointB.y) < epsilon &&
+//            Math.abs(pointA.z - pointB.z) < epsilon;
+// }
+
