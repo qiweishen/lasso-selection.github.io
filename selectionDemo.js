@@ -7,9 +7,7 @@ viewer.setDescription("");
 
 // Global variables
 let selectionMode = "";
-let gridSize_test = 25; // unit: pixel on screen
-let addMode = false;
-let removeMode = false;
+let gridSize = 10; // unit: pixel on screen
 
 viewer.loadGUI(() => {
     viewer.setLanguage('en');
@@ -21,22 +19,40 @@ viewer.loadGUI(() => {
     let content = section.last();
     content.html(`
         <li>
-            <input type="checkbox" id="lasso" name="lasso" value="lasso" unchecked>
-            <label for="lasso">Lasso selection <b><font color=red>(No function)</font></b></label>
+            <input type="checkbox" id="lasso" name="lasso" value="lasso" checked>
+            <label for="lasso">Lasso selection <br><b><font color=red>(Always enabled, No function)</font></b></label>
         </li>
 
-        <br>
-        <div class="divider"><span>Selection parameters</span></div>
+        <div class="divider" style="margin-top: 10px; margin-bottom: 10px; font-size: 15px"><span>Operation instruction</span></div>
         
+        <ul style="list-style-type: disc">
+            <li>Select POIs:
+                <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 5px">
+                    <b><font color=white>Middle button</font></b>
+                </ul>
+            </li>
+            <li>Add POIs: 
+                <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 5px">
+                    <b><font color=white>Ctrl + Middle button</font></b>
+                </ul>
+            </li>
+            <li>Remove selected POIs partly:
+                <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 10px">
+                <b><font color=white>Shift + Middle button</font></b>
+                </ul>
+            </li>
+        </ul>
+
+        <div class="divider" style="margin-top: 10px; margin-bottom: 10px; font-size: 15px"><span>Selection parameters</span></div>
+
         <li>
-            <span>Selection grid size <b><font color=red>(No function)</font></b></span>: <span id="lblLassoSensitivity">5</span><div id="sldLassoSensitivity"></div>
-            <p>A slid bar to adjust the above int value.</p>
+            <span>Selection grid size</span>: <span id="lblLassoSensitivity">10</span><div id="sldLassoSensitivity"></div>
+            <p>For optical performance, set larger number when selecting large area.</p>For selection accuracy, zoom in and set small number to refine the selection.</p>
         </li>
     `);
 
     // Add event listener to checkbox
     $(document).ready(function() {
-        loadData(nothing);
         // jQuery 代码 jQuery code
         $("#lasso").change(function() {
             if (this.checked) {
@@ -47,13 +63,13 @@ viewer.loadGUI(() => {
         });
 
         $("#sldLassoSensitivity").slider({
-            value: 5, // Default value
+            value: 10, // Default value
             min: 1,
-            max: 10,
+            max: 20,
             step: 1,
             slide: function(event, ui) {
                 $("#lblLassoSensitivity").text(ui.value);
-                gridSize_test = ui.value;
+                gridSize = ui.value;
             }
         });
     });
@@ -71,7 +87,14 @@ loadData(lassoSelection);
 // Load point cloud data
 function loadData(callback){
     let scene = viewer.scene;
-    Potree.loadPointCloud("./Potree_1.7/pointclouds/lion_takanawa/cloud.js", "lion", (data) => {
+
+    let dataPath = "../custom_data/Non-medical-pointcloud-examples/GRAANMOLENTJE_converted/cloud.js";
+    let dataName = "GRAANMOLENTJE";
+
+    let dataPathOfficial = "./Potree_1.7/pointclouds/lion_takanawa/cloud.js"
+    let dataNameOfficial = "lion_takanawa";
+
+    Potree.loadPointCloud(dataPathOfficial, dataNameOfficial, (data) => {
         scene.addPointCloud(data.pointcloud);
         // Set point cloud material
         let material = data.pointcloud.material;
@@ -115,32 +138,34 @@ function lassoSelection() {
     });
     const points = new THREE.Points(PointGeometry, PointMaterial);
     
-    let add3DPoints = [];
     let remove3DPoints = [];
 
     let mouseTrajectory = [];
     let pointCloud = viewer.scene.pointclouds[0];
 
     viewer.renderer.domElement.addEventListener("mousedown", (event) => {
-        if (event.button === 1) { // Middle mouse button
+        if (!event.ctrlKey && !event.shiftKey && event.button === 1) { // Middle button => select POIs
             isDrawing = true;
 
-            if (addMode) {
-                add3DPoints = [];
-                lassoVertices = [];
-                viewer.scene.scene.add(lasso);
-
-            } else if (removeMode) {
-                remove3DPoints = [];
-
-            } else {
-
-            }
-
-            
-
             selected3DPoints = [];
-            viewer.scene.scene.add(points);
+            lassoVertices = [];
+            viewer.scene.scene.add(lasso);
+
+            mouseTrajectory = [];
+        } else if (event.ctrlKey && event.button === 1) { // Ctrl + Middle button => add POIs
+            isDrawing = true;
+
+            lassoVertices = [];
+            viewer.scene.scene.add(lasso);
+
+            mouseTrajectory = [];
+        } else if (event.shiftKey && event.button === 1) { // Shift + Middle button => remove POIs
+            isDrawing = true;
+            remove3DPoints = [];
+            
+            lassoVertices = [];
+            viewer.scene.scene.add(lasso);
+            mouseTrajectory = [];
         }
     });
 
@@ -156,7 +181,7 @@ function lassoSelection() {
     });
 
     viewer.renderer.domElement.addEventListener("mouseup", (event) => {
-        if (event.button === 1) {
+        if ((!event.ctrlKey && !event.shiftKey && event.button === 1) || (event.ctrlKey && event.button === 1)) { // Middle button => select POIs or Ctrl + Middle button => select / add POIs
             isDrawing = false;
             lassoVertices.push(lassoVertices[0]);
             update3DLine();
@@ -174,6 +199,35 @@ function lassoSelection() {
             }
             selected3DPoints = removeDuplicatePoints(selected3DPoints);
             update3DPoints();
+            viewer.scene.scene.add(points);
+
+            setTimeout(cleanLine, 200);  // Remove line after 200ms
+            // setTimeout(cleanPoints, 1200);  // Remove points after 200ms
+            // selectPoints(vertices, pointCloud); // Start selecting points
+            // getGridHelper(lassoVertices); // Show grid helper
+            console.log("Lasso vertices: ", lassoVertices);
+            console.log("Selected points: ", selected3DPoints);
+
+        } else if (event.shiftKey && event.button === 1) { // Shift + Middle button => remove POIs
+            isDrawing = false;
+            lassoVertices.push(lassoVertices[0]);
+            update3DLine();
+
+            mouseTrajectory = removeDuplicatePoints(mouseTrajectory)
+            console.log("Number of mouse trajectory points:", mouseTrajectory.length);
+            raysFromMouse = getRaysInsideLasso();
+            console.log("Number of rays from mouse:", raysFromMouse.length);
+            for (let i = 0; i < raysFromMouse.length; i++) {
+                const mouse = raysFromMouse[i];
+                intersectedPoint = get3DPoint_V2(mouse);
+                if (intersectedPoint) {
+                    remove3DPoints.push(intersectedPoint);
+                }
+            }
+            remove3DPoints = removeDuplicatePoints(remove3DPoints);
+            selected3DPoints = removePoints(selected3DPoints, remove3DPoints);
+            update3DPoints();
+            viewer.scene.scene.add(points);
 
             setTimeout(cleanLine, 200);  // Remove line after 200ms
             // setTimeout(cleanPoints, 1200);  // Remove points after 200ms
@@ -182,6 +236,7 @@ function lassoSelection() {
             console.log("Lasso vertices: ", lassoVertices);
             console.log("Selected points: ", selected3DPoints);
         }
+        
     });
 
     // Version 1: the vertices of lasso shape are on the virtual plane (parallel to the screen)
@@ -254,7 +309,7 @@ function lassoSelection() {
     }
 
     function getRaysInsideLasso() {
-        const gridSize = 1; // unit: pixel on screen
+        // const gridSize = 10; // unit: pixel on screen
 
         let raysFromMouse = [];
         const boundingBox = new THREE.Box2().setFromPoints(mouseTrajectory);
@@ -344,14 +399,15 @@ function calculateNormalAndCoplanarPoint(vertices) {
 
 function removeDuplicatePoints(points) {
     const uniquePoints = [];
-    const seen = new Set();
+    const toRemoveSet = new Set();
+
     // Set conditions for different point objects (point.x and point.position.x)
     if (!points[0].position) {
         for (let i = 0; i < points.length; i++) {
             const key = `${points[i].x},${points[i].y},${points[i].z}`;  // Use stringified coordinates as key
     
-            if (!seen.has(key)) {
-                seen.add(key);
+            if (!toRemoveSet.has(key)) {
+                toRemoveSet.add(key);
                 uniquePoints.push(points[i]);
             }
         }
@@ -360,13 +416,49 @@ function removeDuplicatePoints(points) {
         for (let i = 0; i < points.length; i++) {
             const key = `${points[i].position.x},${points[i].position.y},${points[i].position.z}`;
     
-            if (!seen.has(key)) {
-                seen.add(key);
+            if (!toRemoveSet.has(key)) {
+                toRemoveSet.add(key);
                 uniquePoints.push(points[i]);
             }
         }
         return uniquePoints;
     }
+}
+
+
+function removePoints(points, pointsToRemove) {
+    const resultPoints = [];
+    const toRemoveSet = new Set();
+
+    // Set conditions for different point objects (point.x and point.position.x)
+    if (!pointsToRemove[0].position) {
+        for (let i = 0; i < pointsToRemove.length; i++) {
+            const key = `${pointsToRemove[i].x},${pointsToRemove[i].y},${pointsToRemove[i].z}`;
+            toRemoveSet.add(key);
+        }
+
+        for (let i = 0; i < points.length; i++) {
+            const key = `${points[i].x},${points[i].y},${points[i].z}`;
+            if (!toRemoveSet.has(key)) {
+                resultPoints.push(points[i]);
+            }
+        }
+
+    } else {
+        for (let i = 0; i < pointsToRemove.length; i++) {
+            const key = `${pointsToRemove[i].position.x},${pointsToRemove[i].position.y},${pointsToRemove[i].position.z}`;
+            toRemoveSet.add(key);
+        }
+
+        for (let i = 0; i < points.length; i++) {
+            const key = `${points[i].position.x},${points[i].position.y},${points[i].position.z}`;
+            if (!toRemoveSet.has(key)) {
+                resultPoints.push(points[i]);
+            }
+        }
+    }
+
+    return resultPoints;
 }
 
 
