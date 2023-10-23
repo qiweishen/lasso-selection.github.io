@@ -18,9 +18,13 @@ viewer.loadGUI(() => {
     `);
     let content = section.last();
     content.html(`
+        <p style="margin-top: -15px; margin-bottom: 15px; font-size: 20px"><br><b><font color=yellow>Last modified: 2023.10.23</font></b></p>
+
+        <div class="divider"><span>--------</span></div>
+
         <li>
             <input type="checkbox" id="lasso" name="lasso" value="lasso" checked>
-            <label for="lasso">Lasso selection <br><b><font color=red>(Always enabled, No function)</font></b></label>
+            <label for="lasso">Lasso selection <br><b><font color=red>(Always enabled, currently no function)</font></b></label>
         </li>
 
         <div class="divider" style="margin-top: 10px; margin-bottom: 10px; font-size: 15px"><span>Operation instruction</span></div>
@@ -46,7 +50,7 @@ viewer.loadGUI(() => {
         <div class="divider" style="margin-top: 10px; margin-bottom: 10px; font-size: 15px"><span>Selection parameters</span></div>
 
         <li>
-            <span>Selection grid size</span>: <span id="lblLassoSensitivity">10</span><div id="sldLassoSensitivity"></div>
+            <span>Selection grid size</span>: <span id="lblLassoSensitivity">5</span><div id="sldLassoSensitivity"></div>
             <p>For optical performance, set larger number when selecting large area.</p>For selection accuracy, zoom in and set small number to refine the selection.</p>
         </li>
     `);
@@ -63,7 +67,7 @@ viewer.loadGUI(() => {
         });
 
         $("#sldLassoSensitivity").slider({
-            value: 10, // Default value
+            value: 5, // Default value
             min: 1,
             max: 20,
             step: 1,
