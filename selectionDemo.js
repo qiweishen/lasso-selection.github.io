@@ -12,7 +12,8 @@ let handleMouseDownLasso, handleMouseMoveLasso, handleMouseUpLasso;
 let handleMouseDownBlurry, handleMouseMoveBlurry, handleMouseUpBlurry;
 let gridSize = 10; // unit: pixel on screen; default value: 10
 let blurryIntensity = 0.5; // default value: 0.5
-
+let LassoSelectedPoints, BlurrySelectedPoints;
+let SelectedPointsSets = {};
 
 
 
@@ -31,7 +32,7 @@ loadData(loadGUI);
 // Load GUI
 function loadGUI(){
     viewer.loadGUI(() => {
-        viewer.setLanguage('en');
+        viewer.setLanguage("en");
         viewer.toggleSidebar();
 
         let versionSection = $(`
@@ -59,6 +60,70 @@ function loadGUI(){
             </li>
         </ul>
         `);
+
+        let selectionSection = $(`
+            <h3 id="menu_selection" class="accordion-header ui-widget"><span>Selection Tool</span></h3>
+            <div class="accordion-content ui-widget pv-menu-list"></div>
+        `);
+        let selectionContent = selectionSection.last();
+        selectionContent.html(`
+            <li>
+                <input type="checkbox" id="lasso" name="lasso" value="lasso" unchecked>
+                <label for="lasso">Lasso selection</label>
+            </li>
+            <li>
+                <div style="display: flex; justify-content: space-between; margin-top: 10px">
+                    <div style="margin-right: 10px;">
+                        <button class="bounceButton" id="cleanSelectionButton">Clean selection</button>
+                    </div>
+                    <div>
+                        <button class="bounceButton" id="saveButton">Complete selection</button>
+                    </div>
+                </div>
+            </li>
+                    
+            <div>
+                <table border="1">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Points Num</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody">
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Operation instruction</span></div>
+
+            <ul style="margin-left: 0px">
+                <li>Draw lasso shape / Select POIs:
+                    <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 5px">
+                        <b><font color=white>Hold scroll wheel</font></b>
+                    </ul>
+                </li>
+                <li>Add POIs: 
+                    <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 5px">
+                        <b><font color=white>Ctrl + Hold scroll wheel</font></b>
+                    </ul>
+                </li>
+                <li>Remove selected POIs partly:
+                    <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 10px">
+                    <b><font color=white>Shift + Hold scroll wheel</font></b>
+                    </ul>
+                </li>
+            </ul>
+    
+            <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Selection parameters</span></div>
+    
+            <li>
+                <span>Selection grid size</span>: <span id="lblLassoSensitivity">10</span><div id="sldLassoSensitivity"></div>
+                <p><b><font color=white>Controls selection & blurry tools.</font></b></p>
+                <p>For optical performance, set larger number when selecting large area.</p>
+                <p>For selection accuracy, zoom in and set small number to refine the selection.</p>
+            </li>
+        `);
     
         let blurrySection = $(`
             <h3 id="menu_blurry" class="accordion-header ui-widget"><span>Blurry Tool</span></h3>
@@ -67,12 +132,14 @@ function loadGUI(){
         let blurryContent = blurrySection.last();
         blurryContent.html(`
             <li>
-                <input type="checkbox" id="blurry" name="blurry" value="blurry" unchecked>
-                <label for="blurry">Blurry tool</label>
-            </li>
-            <li>
-                <div style="display: flex; margin-top: 10px; margin-bottom: 15px">
-                    <button class="bounceButton" id="cleanBlurryButton">Clean blurry<br><b><font color="red">Currently no function</font></b></button>
+                <div style="display: flex; justify-content: space-between;">
+                    <div style="margin-right: 10px;">
+                        <input type="checkbox" id="blurry" name="blurry" value="blurry" unchecked>
+                        <label for="blurry">Blurry tool</label>
+                    </div>
+                    <div>
+                        <button class="bounceButton" id="cleanBlurryButton">Clean blurry</button>
+                    </div>
                 </div>
             </li>
     
@@ -105,52 +172,6 @@ function loadGUI(){
             </li>
         `);
     
-        let selectionSection = $(`
-            <h3 id="menu_selection" class="accordion-header ui-widget"><span>Selection Tool</span></h3>
-            <div class="accordion-content ui-widget pv-menu-list"></div>
-        `);
-        let selectionContent = selectionSection.last();
-        selectionContent.html(`
-            <li>
-                <input type="checkbox" id="lasso" name="lasso" value="lasso" unchecked>
-                <label for="lasso">Lasso selection</label>
-            </li>
-            <li>
-                <div style="display: flex; margin-top: 10px; margin-bottom: 15px">
-                    <button class="bounceButton" id="saveButton">Complete your selection<br><b><font color="red">Currently no function</font></b></button>
-                </div>
-            </li>
-    
-            <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Operation instruction</span></div>
-            
-            <ul style="margin-left: 0px">
-                <li>Draw lasso shape / Select POIs:
-                    <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 5px">
-                        <b><font color=white>Hold scroll wheel</font></b>
-                    </ul>
-                </li>
-                <li>Add POIs: 
-                    <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 5px">
-                        <b><font color=white>Ctrl + Hold scroll wheel</font></b>
-                    </ul>
-                </li>
-                <li>Remove selected POIs partly:
-                    <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 10px">
-                    <b><font color=white>Shift + Hold scroll wheel</font></b>
-                    </ul>
-                </li>
-            </ul>
-    
-            <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Selection parameters</span></div>
-    
-            <li>
-                <span>Selection grid size</span>: <span id="lblLassoSensitivity">10</span><div id="sldLassoSensitivity"></div>
-                <p><b><font color=white>Controls selection & blurry tools.</font></b></p>
-                <p>For optical performance, set larger number when selecting large area.</p>
-                <p>For selection accuracy, zoom in and set small number to refine the selection.</p>
-            </li>
-        `);
-    
         // Add event listener to checkbox
         $(document).ready(function() {
             // jQuery 代码 jQuery code
@@ -164,7 +185,7 @@ function loadGUI(){
             });
 
             $("#cleanBlurryButton").click(function() {
-                //function to clean blurry
+                removeBlurredPoints();
             });
 
             $("#sldBlurryIntensity").slider({
@@ -188,7 +209,11 @@ function loadGUI(){
             });
 
             $("#saveButton").click(function() {
-                save = true;
+                saveLassoSelectedPoints();
+            });
+
+            $("#cleanSelectionButton").click(function() {
+                removeLassoSelectedPoints();
             });
     
             $("#sldLassoSensitivity").slider({
@@ -205,10 +230,12 @@ function loadGUI(){
         
         versionSection.first().click(() => versionContent.slideToggle());
         versionSection.insertBefore($('#menu_appearance'));
-        blurrySection.first().click(() => blurryContent.slideToggle());
-        blurrySection.insertBefore($('#menu_appearance'));
+
         selectionSection.first().click(() => selectionContent.slideToggle());
         selectionSection.insertBefore($('#menu_appearance'));
+
+        blurrySection.first().click(() => blurryContent.slideToggle());
+        blurrySection.insertBefore($('#menu_appearance'));
     });
 }
 
@@ -273,20 +300,12 @@ function lassoSelection() {
         size: 4,
         sizeAttenuation: false
     });
-    const points = new THREE.Points(PointGeometry, PointMaterial);
+    LassoSelectedPoints = new THREE.Points(PointGeometry, PointMaterial);
 
     let remove3DPoints = [];
 
     let mouseTrajectory = [];
     let pointCloud = viewer.scene.pointclouds[0];
-
-
-    // if (save) {
-    //     let newPointCloud = new Potree.pointCloud();
-    //     newPointCloud.name = "selectedPoints";
-    //     newPointCloud.position.copy(points.position);
-    // }
-
 
     // Functions for the above eventListeners
     handleMouseDownLasso = function(event) {
@@ -348,7 +367,7 @@ function lassoSelection() {
             if (selected3DPoints.length > 0) {
                 selected3DPoints = removeDuplicatePoints(selected3DPoints);
                 update3DPoints();
-                viewer.scene.scene.add(points);
+                viewer.scene.scene.add(LassoSelectedPoints);
             }
 
             setTimeout(cleanLine, 200);  // Remove line after 200ms
@@ -379,7 +398,7 @@ function lassoSelection() {
             remove3DPoints = removeDuplicatePoints(remove3DPoints);
             selected3DPoints = removePoints(selected3DPoints, remove3DPoints);
             update3DPoints();
-            viewer.scene.scene.add(points);
+            viewer.scene.scene.add(LassoSelectedPoints);
 
             setTimeout(cleanLine, 200);  // Remove line after 200ms
             // setTimeout(cleanPoints, 1200);  // Remove points after 200ms
@@ -494,10 +513,6 @@ function lassoSelection() {
     function cleanLine() {
         viewer.scene.scene.remove(lasso);
     }
-
-    function cleanPoints() {
-        viewer.scene.scene.remove(points);
-    }
 }
 
 
@@ -507,6 +522,57 @@ function removeLassoEventListeners() {
     viewer.renderer.domElement.removeEventListener("mousemove", handleMouseMoveLasso);
     viewer.renderer.domElement.removeEventListener("mouseup", handleMouseUpLasso);
 }
+
+
+// Remove selected points
+function removeLassoSelectedPoints() {
+    viewer.scene.scene.remove(LassoSelectedPoints);
+    window.alert("Your current selected points have been removed.");
+}
+
+
+// Save selected points
+function saveLassoSelectedPoints() {
+    if (LassoSelectedPoints) {
+        while (true) {
+            const userInput = prompt("Name this selection set: ");
+            if (userInput === null || userInput === "") {
+                window.alert("Please enter a name.");
+                continue;
+            } else {
+                if (userInput in SelectedPointsSets) {
+                    window.alert("This name already exists. Please try another name.");
+                } else {
+                    SelectedPointsSets[userInput] = LassoSelectedPoints.clone();
+                    viewer.scene.scene.remove(LassoSelectedPoints);
+                    toTable(SelectedPointsSets);
+                    window.alert("Your current selected points have been saved.");
+                    break;
+                }
+            }
+        }
+    } else {
+        window.alert("No selected points to save.");
+    }
+    console.log("Selected points sets: ", SelectedPointsSets);
+}
+
+
+// ToTable
+function toTable(dictionary) {
+    let tableBody = document.getElementById('tableBody');
+
+    for (let key in dictionary) {
+        let row = tableBody.insertRow();
+        
+        let cell1 = row.insertCell(0);
+        cell1.textContent = key;
+        
+        let cell2 = row.insertCell(1);
+        cell2.textContent = dictionary[key].geometry.attributes.position.count;
+    }
+}
+
 
 
 // Blurry selection
@@ -529,7 +595,7 @@ function blurrySelection() {
         vertexColors: THREE.VertexColors,
         sizeAttenuation: false
     });
-    const points = new THREE.Points(PointGeometry, PointMaterial);
+    BlurrySelectedPoints = new THREE.Points(PointGeometry, PointMaterial);
     
     let remove3DPoints = [];
 
@@ -608,7 +674,7 @@ function blurrySelection() {
             if (selected3DPoints.length > 0) {
                 selected3DPoints = removeDuplicatePoints(selected3DPoints);
                 update3DPoints();
-                viewer.scene.scene.add(points);
+                viewer.scene.scene.add(BlurrySelectedPoints);
             }
 
             setTimeout(cleanLine, 200);
@@ -634,7 +700,7 @@ function blurrySelection() {
             selected3DPoints = removePoints(selected3DPoints, remove3DPoints);
             
             update3DPoints();
-            viewer.scene.scene.add(points);
+            viewer.scene.scene.add(BlurrySelectedPoints);
 
             setTimeout(cleanLine, 200);
         }
@@ -773,10 +839,6 @@ function blurrySelection() {
     function cleanLine() {
         viewer.scene.scene.remove(lasso);
     }
-
-    function cleanPoints() {
-        viewer.scene.scene.remove(points);
-    }
 }
 
 
@@ -790,7 +852,11 @@ function removeBlurryEventListeners() {
 }
 
 
-
+// Remove blurred points
+function removeBlurredPoints() {
+    viewer.scene.scene.remove(BlurrySelectedPoints);
+    window.alert("Your current blurry have been removed.");
+}
 
 
 
