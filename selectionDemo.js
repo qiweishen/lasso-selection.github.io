@@ -6,9 +6,12 @@ viewer.loadSettingsFromURL();
 viewer.setDescription("");
 
 // Global variables
-let toolMode = "None";
-let lassoSets = 0;
+let lassoToolMode = "None";
+let blurryToolMode = "None";
+let handleMouseDownLasso, handleMouseMoveLasso, handleMouseUpLasso;
+let handleMouseDownBlurry, handleMouseMoveBlurry, handleMouseUpBlurry;
 let gridSize = 10; // unit: pixel on screen; default value: 10
+let blurryIntensity = 0.5; // default value: 0.5
 
 
 
@@ -23,11 +26,39 @@ loadData(loadGUI);
 
 
 
+
+
 // Load GUI
 function loadGUI(){
     viewer.loadGUI(() => {
         viewer.setLanguage('en');
         viewer.toggleSidebar();
+
+        let versionSection = $(`
+        <h3 id="menu_version" class="accordion-header ui-widget"><span>Version - Blurry & Selection tools</span></h3>
+        <div class="accordion-content ui-widget pv-menu-list"></div>
+        `);
+        let versionContent = versionSection.last();
+        versionContent.html(`
+        <p style="margin-top: -15px; margin-bottom: 15px; text-align: center; font-size: 15px"><br><b><font color=yellow>Last modified: 2023.10.30</font></b></p>
+
+        <div class="divider" style="margin-top: 10px; margin-bottom: 10px; font-size: 15px"><span>To do list</span></div>
+
+        <ul style="margin-left: 0px">
+            <li style="margin-top: 5px; margin-bottom: 10px">
+                Enable the function of Complete your selection button.
+            </li>
+            <li style="margin-top: 5px; margin-bottom: 10px">
+                Develop a layered control menu to visualize distinct set of selected points.
+            </li>
+            <li style="margin-top: 5px; margin-bottom: 10px">
+                Integrated with annotation tool.
+            </li>
+            <li style="margin-top: 5px; margin-bottom: 10px">
+                ......
+            </li>
+        </ul>
+        `);
     
         let blurrySection = $(`
             <h3 id="menu_blurry" class="accordion-header ui-widget"><span>Blurry Tool</span></h3>
@@ -35,25 +66,43 @@ function loadGUI(){
         `);
         let blurryContent = blurrySection.last();
         blurryContent.html(`
-            <p style="margin-top: -15px; margin-bottom: 15px; font-size: 20px"><br><b><font color=yellow>Last modified: 2023.10.25</font></b></p>
-    
-            <div class="divider"><span>--------</span></div>
-    
             <li>
                 <input type="checkbox" id="blurry" name="blurry" value="blurry" unchecked>
                 <label for="blurry">Blurry tool</label>
-                <div style="margin-top: 10px"><b><font color=red>(Always enabled, no function)</font></div>
+            </li>
+            <li>
+                <div style="display: flex; margin-top: 10px; margin-bottom: 15px">
+                    <button class="bounceButton" id="cleanBlurryButton">Clean blurry<br><b><font color="red">Currently no function</font></b></button>
+                </div>
             </li>
     
             <div class="divider" style="margin-top: 10px; margin-bottom: 10px; font-size: 15px"><span>Operation instruction</span></div>
             
-            <ul style="list-style-type: disc">
-                <li>Blurry points:
+            <ul style="margin-left: 0px">
+                <li>Draw lasso shape / Select POIs:
                     <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 5px">
-                        <b><font color=white>B + Middle button</font></b>
+                        <b><font color=white>B + Hold scroll wheel</font></b>
+                    </ul>
+                </li>
+                <li>Add POIs: 
+                    <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 5px">
+                        <b><font color=white>Ctrl + B + Hold scroll wheel</font></b>
+                    </ul>
+                </li>
+                <li>Remove selected POIs partly:
+                    <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 10px">
+                    <b><font color=white>Shift + B + Hold scroll wheel</font></b>
                     </ul>
                 </li>
             </ul>
+
+            <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Blurring parameters</span></div>
+    
+            <li>
+                <span>Blurry intensity</span>: <span id="lblBlurryIntensity">0.5</span><div id="sldBlurryIntensity"></div>
+                <p>Please set the intensity of the blurring effect before blurry.</p>
+                <p>As the blur intensity increases, the performance of the blurring effect is enhanced.</p>
+            </li>
         `);
     
         let selectionSection = $(`
@@ -62,46 +111,43 @@ function loadGUI(){
         `);
         let selectionContent = selectionSection.last();
         selectionContent.html(`
-            <p style="margin-top: -15px; margin-bottom: 15px; font-size: 20px"><br><b><font color=yellow>Last modified: 2023.10.25</font></b></p>
-    
-            <div class="divider"><span>--------</span></div>
-    
             <li>
                 <input type="checkbox" id="lasso" name="lasso" value="lasso" unchecked>
                 <label for="lasso">Lasso selection</label>
-                <div style="margin-top: 10px"><b><font color=red>(Always enabled, no function)</font></b></div>
             </li>
             <li>
-                <div style="display: flex; justify-content: center; align-items: center; margin-top: 10px; margin-bottom: 15px">
-                    <button class="bounceButton" id="saveButton">Complete your selection</button>
+                <div style="display: flex; margin-top: 10px; margin-bottom: 15px">
+                    <button class="bounceButton" id="saveButton">Complete your selection<br><b><font color="red">Currently no function</font></b></button>
                 </div>
             </li>
     
-            <div class="divider" style="margin-top: 10px; margin-bottom: 10px; font-size: 15px"><span>Operation instruction</span></div>
+            <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Operation instruction</span></div>
             
-            <ul style="list-style-type: disc">
-                <li>Select POIs:
+            <ul style="margin-left: 0px">
+                <li>Draw lasso shape / Select POIs:
                     <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 5px">
-                        <b><font color=white>Middle button</font></b>
+                        <b><font color=white>Hold scroll wheel</font></b>
                     </ul>
                 </li>
                 <li>Add POIs: 
                     <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 5px">
-                        <b><font color=white>Ctrl + Middle button</font></b>
+                        <b><font color=white>Ctrl + Hold scroll wheel</font></b>
                     </ul>
                 </li>
                 <li>Remove selected POIs partly:
                     <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 10px">
-                    <b><font color=white>Shift + Middle button</font></b>
+                    <b><font color=white>Shift + Hold scroll wheel</font></b>
                     </ul>
                 </li>
             </ul>
     
-            <div class="divider" style="margin-top: 10px; margin-bottom: 10px; font-size: 15px"><span>Selection parameters</span></div>
+            <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Selection parameters</span></div>
     
             <li>
-                <span>Selection grid size</span>: <span id="lblLassoSensitivity">5</span><div id="sldLassoSensitivity"></div>
-                <p>For optical performance, set larger number when selecting large area.</p>For selection accuracy, zoom in and set small number to refine the selection.</p>
+                <span>Selection grid size</span>: <span id="lblLassoSensitivity">10</span><div id="sldLassoSensitivity"></div>
+                <p><b><font color=white>Controls selection & blurry tools.</font></b></p>
+                <p>For optical performance, set larger number when selecting large area.</p>
+                <p>For selection accuracy, zoom in and set small number to refine the selection.</p>
             </li>
         `);
     
@@ -110,18 +156,33 @@ function loadGUI(){
             // jQuery 代码 jQuery code
             $("#blurry").change(function() {
                 if (this.checked) {
-                    toolMode = "blurry";
+                    blurryToolMode = "blurry";
                 } else {
-                    toolMode = "disableBlurry";
+                    blurryToolMode = "disableBlurry";
                 }
                 updateToolMode();
+            });
+
+            $("#cleanBlurryButton").click(function() {
+                //function to clean blurry
+            });
+
+            $("#sldBlurryIntensity").slider({
+                value: 0.5, // Default value
+                min: 0.1,
+                max: 1.0,
+                step: 0.1,
+                slide: function(event, ui) {
+                    $("#lblBlurryIntensity").text(ui.value);
+                    blurryIntensity = ui.value;
+                }
             });
     
             $("#lasso").change(function() {
                 if (this.checked) {
-                    toolMode = "lasso";
+                    lassoToolMode = "lasso";
                 } else {
-                    toolMode = "disableLasso";
+                    lassoToolMode = "disableLasso";
                 }
                 updateToolMode();
             });
@@ -131,8 +192,8 @@ function loadGUI(){
             });
     
             $("#sldLassoSensitivity").slider({
-                value: 5, // Default value
-                min: 1,
+                value: 10, // Default value
+                min: 5,
                 max: 20,
                 step: 1,
                 slide: function(event, ui) {
@@ -141,7 +202,9 @@ function loadGUI(){
                 }
             });
         });
-    
+        
+        versionSection.first().click(() => versionContent.slideToggle());
+        versionSection.insertBefore($('#menu_appearance'));
         blurrySection.first().click(() => blurryContent.slideToggle());
         blurrySection.insertBefore($('#menu_appearance'));
         selectionSection.first().click(() => selectionContent.slideToggle());
@@ -153,9 +216,6 @@ function loadGUI(){
 // Load point cloud data
 function loadData(callback){
     let scene = viewer.scene;
-
-    // let dataPath = "../custom_data/Non-medical-pointcloud-examples/GRAANMOLENTJE_converted/cloud.js";
-    // let dataName = "GRAANMOLENTJE";
 
     let dataPathOfficial = "./Potree_1.7/pointclouds/lion_takanawa/cloud.js"
     let dataNameOfficial = "lion_takanawa";
@@ -179,15 +239,16 @@ function loadData(callback){
 
 
 function updateToolMode() {
-    if (toolMode === "blurry") {
-        // blurrySelection();
-    } else if (toolMode === "disableBlurry") {
-        // Disable blurry tool
+    if (blurryToolMode === "blurry") {
+        blurrySelection();
+    } else if (blurryToolMode === "disableBlurry") {
+        removeBlurryEventListeners();
     }
-    else if (toolMode === "lasso") {
+    
+    if (lassoToolMode === "lasso") {
         lassoSelection();
-    } else if (toolMode === "disableLasso") {
-        lassoSelection();
+    } else if (lassoToolMode === "disableLasso") {
+        removeLassoEventListeners();
     }
 }
 
@@ -213,25 +274,23 @@ function lassoSelection() {
         sizeAttenuation: false
     });
     const points = new THREE.Points(PointGeometry, PointMaterial);
-    
+
     let remove3DPoints = [];
 
     let mouseTrajectory = [];
     let pointCloud = viewer.scene.pointclouds[0];
 
-    viewer.renderer.domElement.addEventListener("mousedown", handleMouseDown);
-    viewer.renderer.domElement.addEventListener("mousemove", handleMouseMove);
-    viewer.renderer.domElement.addEventListener("mouseup", handleMouseUp);
-    
-    if (save) {
-        let newPointCloud = new Potree.pointCloud();
-        newPointCloud.name = "selectedPoints";
-        newPointCloud.position.copy(points.position);
-    }
+
+    // if (save) {
+    //     let newPointCloud = new Potree.pointCloud();
+    //     newPointCloud.name = "selectedPoints";
+    //     newPointCloud.position.copy(points.position);
+    // }
+
 
     // Functions for the above eventListeners
-    function handleMouseDown(event) {
-        if (!event.ctrlKey && !event.shiftKey && event.button === 1) { // Middle button => select POIs
+    handleMouseDownLasso = function(event) {
+        if (!event.ctrlKey && !event.shiftKey && event.button === 1) { // Middle button => draw lasso shape / select POIs
             isDrawing = true;
 
             selected3DPoints = [];
@@ -256,7 +315,7 @@ function lassoSelection() {
         }
     }
 
-    function handleMouseMove(event) {
+    handleMouseMoveLasso = function(event) {
         if (isDrawing) {
             const vertices = get3DPoint_V1(event);
             if (vertices) {
@@ -267,21 +326,23 @@ function lassoSelection() {
         }
     }
 
-    function handleMouseUp(event) {
+    handleMouseUpLasso = function(event) {
         if ((!event.ctrlKey && !event.shiftKey && event.button === 1) || (event.ctrlKey && event.button === 1)) { // Middle button => select POIs or Ctrl + Middle button => select / add POIs
             isDrawing = false;
             lassoVertices.push(lassoVertices[0]);
             update3DLine();
 
             mouseTrajectory = removeDuplicatePoints(mouseTrajectory)
-            console.log("Number of mouse trajectory points:", mouseTrajectory.length);
-            raysFromMouse = getRaysInsideLasso();
-            console.log("Number of rays from mouse:", raysFromMouse.length);
+            // console.log("Number of mouse trajectory points:", mouseTrajectory.length);
+            const lassRays = getRaysInsideLasso();
+            const raysFromMouse = lassRays.rays;
+            
             for (let i = 0; i < raysFromMouse.length; i++) {
                 const mouse = raysFromMouse[i];
                 intersectedPoint = get3DPoint_V2(mouse);
                 if (intersectedPoint) {
-                    selected3DPoints.push(intersectedPoint);
+                    for (let j = 0; j < intersectedPoint.length; j++)
+                    selected3DPoints.push(intersectedPoint[j]);
                 }
             }
             if (selected3DPoints.length > 0) {
@@ -294,8 +355,8 @@ function lassoSelection() {
             // setTimeout(cleanPoints, 1200);  // Remove points after 200ms
             // selectPoints(vertices, pointCloud); // Start selecting points
             // getGridHelper(lassoVertices); // Show grid helper
-            console.log("Lasso vertices: ", lassoVertices);
-            console.log("Selected points: ", selected3DPoints);
+            // console.log("Lasso vertices: ", lassoVertices);
+            // console.log("Selected points: ", selected3DPoints);
 
         } else if (event.shiftKey && event.button === 1) { // Shift + Middle button => remove POIs
             isDrawing = false;
@@ -303,14 +364,16 @@ function lassoSelection() {
             update3DLine();
 
             mouseTrajectory = removeDuplicatePoints(mouseTrajectory)
-            console.log("Number of mouse trajectory points:", mouseTrajectory.length);
-            raysFromMouse = getRaysInsideLasso();
-            console.log("Number of rays from mouse:", raysFromMouse.length);
+            // console.log("Number of mouse trajectory points:", mouseTrajectory.length);
+            const lassRays = getRaysInsideLasso();
+            const raysFromMouse = lassRays.rays;
+
             for (let i = 0; i < raysFromMouse.length; i++) {
                 const mouse = raysFromMouse[i];
                 intersectedPoint = get3DPoint_V2(mouse);
                 if (intersectedPoint) {
-                    remove3DPoints.push(intersectedPoint);
+                    for (let j = 0; j < intersectedPoint.length; j++)
+                        remove3DPoints.push(intersectedPoint[j]);
                 }
             }
             remove3DPoints = removeDuplicatePoints(remove3DPoints);
@@ -322,16 +385,15 @@ function lassoSelection() {
             // setTimeout(cleanPoints, 1200);  // Remove points after 200ms
             // selectPoints(vertices, pointCloud); // Start selecting points
             // getGridHelper(lassoVertices); // Show grid helper
-            console.log("Lasso vertices: ", lassoVertices);
-            console.log("Selected points: ", selected3DPoints);
+            // console.log("Lasso vertices: ", lassoVertices);
+            // console.log("Selected points: ", selected3DPoints);
         }
     }
 
-    function removeEventListeners() {
-        viewer.renderer.domElement.removeEventListener("mousedown", handleMouseDown);
-        viewer.renderer.domElement.removeEventListener("mousemove", handleMouseMove);
-        viewer.renderer.domElement.removeEventListener("mouseup", handleMouseUp);
-    }
+    viewer.renderer.domElement.addEventListener("mousedown", handleMouseDownLasso);
+    viewer.renderer.domElement.addEventListener("mousemove", handleMouseMoveLasso);
+    viewer.renderer.domElement.addEventListener("mouseup", handleMouseUpLasso);
+
 
     // Version 1: the vertices of lasso shape are on the virtual plane (parallel to the screen)
     function get3DPoint_V1(event) {
@@ -360,7 +422,7 @@ function lassoSelection() {
     }
 
     // Version 2: the vertices of lasso shape are on the 3D point cloud
-    function get3DPoint_V2(mouse) {
+    function get3DPoint_V2(mouse, min_length) {
         const rect = viewer.renderer.domElement.getBoundingClientRect();
         const x = ((mouse.x - rect.left) / rect.width) * 2 - 1;
         const y = -((mouse.y - rect.top) / rect.height) * 2 + 1;
@@ -374,11 +436,13 @@ function lassoSelection() {
         pickParams.pickClipped = true;
         pickParams.x = mouse.x - rect.left;
         pickParams.y = rect.height - mouse.y;
+        pickParams.all = true;
+        pickParams.pickWindowSize = min_length;
 
-        const point = pickPoint(pointCloud, viewer, camera, ray, pickParams);
-        // console.log(point);
+        const points_list = pickPoint(pointCloud, viewer, camera, ray, pickParams);
+        // console.log(points_list);
 
-        return point;
+        return points_list;
     }
 
     function update3DLine() {
@@ -405,10 +469,11 @@ function lassoSelection() {
     function getRaysInsideLasso() {
         // const gridSize = 10; // unit: pixel on screen
 
-        let raysFromMouse = [];
+        let rays = [];
         const boundingBox = new THREE.Box2().setFromPoints(mouseTrajectory);
+        // console.log("Bounding box:", boundingBox);
         const size = boundingBox.getSize(new THREE.Vector2());
-        console.log("Bounding box size:", size);
+        // console.log("Bounding box size:", size);
         const x_step = Math.ceil(size.x / gridSize);
         const y_step = Math.ceil(size.y / gridSize);
 
@@ -418,12 +483,12 @@ function lassoSelection() {
                 const y = boundingBox.min.y + j * gridSize;
                 const point = new THREE.Vector2(x, y);
                 if (isPointInsidePolygon(point, mouseTrajectory)) {
-                    raysFromMouse.push(point);
+                    rays.push(point);
                 }
             }
         }
 
-        return raysFromMouse;
+        return {rays};
     }
 
     function cleanLine() {
@@ -436,11 +501,316 @@ function lassoSelection() {
 }
 
 
+// Remove lasso event listeners
+function removeLassoEventListeners() {
+    viewer.renderer.domElement.removeEventListener("mousedown", handleMouseDownLasso);
+    viewer.renderer.domElement.removeEventListener("mousemove", handleMouseMoveLasso);
+    viewer.renderer.domElement.removeEventListener("mouseup", handleMouseUpLasso);
+}
+
+
+// Blurry selection
+function blurrySelection() {
+    let isDrawing = false;
+
+    let lassoVertices = [];
+    const lineGeometry = new THREE.BufferGeometry();
+    const lineMaterial = new THREE.LineBasicMaterial({
+        color: 0x00ff00, // Set line color to red
+        linewidth: 2,
+        side: THREE.DoubleSide
+    });
+    const lasso = new THREE.Line(lineGeometry, lineMaterial);
+
+    let selected3DPoints = [];
+    const PointGeometry = new THREE.BufferGeometry();
+    const PointMaterial = new THREE.PointsMaterial({
+        size: 8,
+        vertexColors: THREE.VertexColors,
+        sizeAttenuation: false
+    });
+    const points = new THREE.Points(PointGeometry, PointMaterial);
+    
+    let remove3DPoints = [];
+
+    let mouseTrajectory = [];
+    let pointCloud = viewer.scene.pointclouds[0];
+
+    // Functions for the listen of key B
+    let isBKeyPressed = false;
+    handleKeyB_down_Blurry = function(event) {
+        if (event.key === 'B' || event.keyCode === 66) {
+            isBKeyPressed = true;
+        }
+    }
+    handleKeyB_up_Blurry = function(event) {
+        if (event.key === 'B' || event.keyCode === 66) {
+            isBKeyPressed = false;
+        }
+    }
+
+    // Functions for the above eventListeners
+    handleMouseDownBlurry = function(event) {
+        if (!event.ctrlKey && !event.shiftKey && isBKeyPressed && event.button === 1) { // B + Middle button => draw lasso shape / select POIs
+            isDrawing = true;
+
+            selected3DPoints = [];
+            lassoVertices = [];
+            viewer.scene.scene.add(lasso);
+
+            mouseTrajectory = [];
+        } else if (event.ctrlKey && isBKeyPressed && event.button === 1) { // Ctrl + B + Middle button => add POIs
+            isDrawing = true;
+
+            lassoVertices = [];
+            viewer.scene.scene.add(lasso);
+
+            mouseTrajectory = [];
+        } else if (event.shiftKey && isBKeyPressed && event.button === 1) { // Shift + B + Middle button => remove POIs
+            isDrawing = true;
+            remove3DPoints = [];
+            
+            lassoVertices = [];
+            viewer.scene.scene.add(lasso);
+            mouseTrajectory = [];
+        }
+    }
+
+    handleMouseMoveBlurry = function(event) {
+        if (isDrawing) {
+            const vertices = get3DPoint_V1(event);
+            if (vertices) {
+                lassoVertices.push(vertices.point3D);
+                mouseTrajectory.push(vertices.mouse);
+                update3DLine();
+            }
+        }
+    }
+
+    handleMouseUpBlurry = function(event) {
+        if ((!event.ctrlKey && !event.shiftKey && isBKeyPressed && event.button === 1) || (event.ctrlKey && isBKeyPressed && event.button === 1)) { // B + Middle button => select POIs or Ctrl + B + Middle button => select / add POIs
+            isDrawing = false;
+            lassoVertices.push(lassoVertices[0]);
+            update3DLine();
+
+            mouseTrajectory = removeDuplicatePoints(mouseTrajectory)
+            const lassRays = getRaysInsideLasso();
+            const raysFromMouse = lassRays.rays;
+            
+            for (let i = 0; i < raysFromMouse.length; i++) {
+                const mouse = raysFromMouse[i];
+                intersectedPoint = get3DPoint_V2(mouse);
+                if (intersectedPoint) {
+                    for (let j = 0; j < intersectedPoint.length; j++)
+                    selected3DPoints.push(intersectedPoint[j]);
+                }
+            }
+            if (selected3DPoints.length > 0) {
+                selected3DPoints = removeDuplicatePoints(selected3DPoints);
+                update3DPoints();
+                viewer.scene.scene.add(points);
+            }
+
+            setTimeout(cleanLine, 200);
+
+        } else if (event.shiftKey && isBKeyPressed && event.button === 1) { // Shift + B + Middle button => remove POIs
+            isDrawing = false;
+            lassoVertices.push(lassoVertices[0]);
+            update3DLine();
+
+            mouseTrajectory = removeDuplicatePoints(mouseTrajectory)
+            const lassRays = getRaysInsideLasso();
+            const raysFromMouse = lassRays.rays;
+
+            for (let i = 0; i < raysFromMouse.length; i++) {
+                const mouse = raysFromMouse[i];
+                intersectedPoint = get3DPoint_V2(mouse);
+                if (intersectedPoint) {
+                    for (let j = 0; j < intersectedPoint.length; j++)
+                        remove3DPoints.push(intersectedPoint[j]);
+                }
+            }
+            remove3DPoints = removeDuplicatePoints(remove3DPoints);
+            selected3DPoints = removePoints(selected3DPoints, remove3DPoints);
+            
+            update3DPoints();
+            viewer.scene.scene.add(points);
+
+            setTimeout(cleanLine, 200);
+        }
+    }
+    
+    viewer.renderer.domElement.addEventListener("keydown", handleKeyB_down_Blurry);
+    viewer.renderer.domElement.addEventListener("keyup", handleKeyB_up_Blurry);
+    viewer.renderer.domElement.addEventListener("mousedown", handleMouseDownBlurry);
+    viewer.renderer.domElement.addEventListener("mousemove", handleMouseMoveBlurry);
+    viewer.renderer.domElement.addEventListener("mouseup", handleMouseUpBlurry);
+
+
+    // Version 1: the vertices of lasso shape are on the virtual plane (parallel to the screen)
+    function get3DPoint_V1(event) {
+        const rect = viewer.renderer.domElement.getBoundingClientRect();
+        const x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        const y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        const mouse = new THREE.Vector2(event.clientX, event.clientY);
+        
+        const camera = viewer.scene.getActiveCamera();
+        const rayCaster = new THREE.Raycaster();
+        rayCaster.setFromCamera(new THREE.Vector2(x, y), camera);
+
+        const targetPoint = new THREE.Vector3(0, 0, -1).unproject(camera);
+        const planeNormal = new THREE.Vector3().subVectors(targetPoint, camera.position).normalize();
+        const planeDistance = 0.1;
+        const planePoint = camera.position.clone().add(planeNormal.clone().multiplyScalar(planeDistance));
+        const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
+
+        const point3D = new THREE.Vector3();
+        const isIntersecting = rayCaster.ray.intersectPlane(plane, point3D);
+
+        return {point3D, mouse};
+    }
+
+    // Version 2: the vertices of lasso shape are on the 3D point cloud
+    function get3DPoint_V2(mouse, min_length) {
+        const rect = viewer.renderer.domElement.getBoundingClientRect();
+        const x = ((mouse.x - rect.left) / rect.width) * 2 - 1;
+        const y = -((mouse.y - rect.top) / rect.height) * 2 + 1;
+
+        const camera = viewer.scene.getActiveCamera();
+        const raycaster = new THREE.Raycaster();
+        raycaster.setFromCamera(new THREE.Vector2(x, y), camera);
+        const ray = raycaster.ray;
+
+        let pickParams = {};
+        pickParams.pickClipped = true;
+        pickParams.x = mouse.x - rect.left;
+        pickParams.y = rect.height - mouse.y;
+        pickParams.all = true;
+        pickParams.pickWindowSize = min_length;
+
+        const points_list = pickPoint(pointCloud, viewer, camera, ray, pickParams);
+
+        return points_list;
+    }
+
+    function update3DLine() {
+        const positions = [];
+        for (let i = 0; i < lassoVertices.length; i++) {
+            positions.push(lassoVertices[i].x, lassoVertices[i].y, lassoVertices[i].z);
+        }
+        lineGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+        lineGeometry.computeBoundingSphere();
+        lineGeometry.attributes.position.needsUpdate = true;
+    }
+
+    function update3DPoints() {
+        const numPoints = selected3DPoints.length;
+        const boundingBox = pointCloud.boundingBox;
+        const boundingBoxSize = boundingBox.getSize(new THREE.Vector3());
+        const offset_x = calculateOffset(boundingBoxSize.x);
+        const offset_y = calculateOffset(boundingBoxSize.y);
+        const offset_z = calculateOffset(boundingBoxSize.z);
+
+        const positions = [];
+        const colors = [];
+        for (let i = 0; i < numPoints; i++) {
+            positions[i * 3] = selected3DPoints[i].position.x + offset_x;
+            positions[i * 3 + 1] = selected3DPoints[i].position.y + offset_y;
+            positions[i * 3 + 2] = selected3DPoints[i].position.z + offset_z;
+
+            let r = Math.random();
+            let g = Math.random();
+            let b = Math.random();
+            colors[3 * i] = r;
+            colors[3 * i + 1] = g;
+            colors[3 * i + 2] = b;
+        }
+
+        PointGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+        PointGeometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+        PointGeometry.computeBoundingSphere();
+
+    }
+
+    function getRaysInsideLasso() {
+
+        let rays = [];
+        const boundingBox = new THREE.Box2().setFromPoints(mouseTrajectory);
+        const size = boundingBox.getSize(new THREE.Vector2());
+        const x_step = Math.ceil(size.x / gridSize);
+        const y_step = Math.ceil(size.y / gridSize);
+
+        for (let i = 0; i < x_step; i++) {
+            for (let j = 0; j < y_step; j++) {
+                const x = boundingBox.min.x + i * gridSize;
+                const y = boundingBox.min.y + j * gridSize;
+                const point = new THREE.Vector2(x, y);
+                if (isPointInsidePolygon(point, mouseTrajectory)) {
+                    rays.push(point);
+                }
+            }
+        }
+
+        return {rays};
+    }
+
+    function calculateOffset(boundingBoxSize) {
+        const MIN_MULTIPLIER = 1 / 10000;
+        const MAX_MULTIPLIER = 1 / 100;
+    
+        const logMin = Math.log10(0.1);
+        const logMax = Math.log10(1);
+        const logX = Math.log10(blurryIntensity);
+    
+        const normalizedLog = (logX - logMin) / (logMax - logMin);
+        const random = gaussianRandom() * (boundingBoxSize / 1000);
+
+        const offsetMultiplier = MIN_MULTIPLIER + (MAX_MULTIPLIER - MIN_MULTIPLIER) * normalizedLog;
+    
+        return ((boundingBoxSize * offsetMultiplier) + random) * randomSign();
+    }
+
+    function cleanLine() {
+        viewer.scene.scene.remove(lasso);
+    }
+
+    function cleanPoints() {
+        viewer.scene.scene.remove(points);
+    }
+}
+
+
+// Remove blurry event listeners
+function removeBlurryEventListeners() {
+    viewer.renderer.domElement.removeEventListener("keydown", handleKeyB_down_Blurry);
+    viewer.renderer.domElement.removeEventListener("keyup", handleKeyB_up_Blurry);
+    viewer.renderer.domElement.removeEventListener("mousedown", handleMouseDownBlurry);
+    viewer.renderer.domElement.removeEventListener("mousemove", handleMouseMoveBlurry);
+    viewer.renderer.domElement.removeEventListener("mouseup", handleMouseUpBlurry);
+}
+
+
 
 
 
 
 // Useful functions
+function gaussianRandom() {
+    let u = 0, v = 0;
+    while (u === 0) u = Math.random();
+    while (v === 0) v = Math.random();
+    let num = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+    num = num / 10.0 + 0.5;
+    if (num > 1 || num < 0) return gaussianRandom();
+    return num;
+}
+
+
+function randomSign() {
+    return Math.random() < 0.5 ? -1 : 1;
+}
+
+
 function isPointInsidePolygon(point, vertices) {
     let intersectCount = 0;
 
@@ -483,7 +853,7 @@ function calculateNormalAndCoplanarPoint(vertices) {
         return sum.divideScalar(verticesSubset.length);
     }
 
-    return { planeNormal, avgPoint, plane };
+    return {planeNormal, avgPoint, plane};
 }
 
 
@@ -562,10 +932,10 @@ function pickPoint(pointCloud, viewer, camera, ray, params = {}){
 
     let getVal = (a, b) => a !== undefined ? a : b;
 
-    let pickWindowSize = getVal(params.pickWindowSize, 17);
+    let pickWindowSize = Math.ceil(Math.min(getVal(params.pickWindowSize, gridSize * 1.25), gridSize * 1.25));
     let pickOutsideClipRegion = getVal(params.pickOutsideClipRegion, false);
 
-    pickWindowSize = 65;
+    // pickWindowSize = 65;
 
     let size = renderer.getSize(new THREE.Vector2());
 
@@ -705,10 +1075,11 @@ function pickPoint(pointCloud, viewer, camera, ray, params = {}){
                     pcIndex: pcIndex,
                     distanceToCenter: distance
                 };
-
+                
                 if(params.all){
                     hits.push(hit);
-                }else{
+                }
+                else{
                     if(hits.length > 0){
                         if(distance < hits[0].distanceToCenter){
                             hits[0] = hit;
