@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图层控制器</title>
+    <style>
+        .layer-controller {
+            width: 200px;
+            background-color: green;
+            box-shadow: 0px 8px 16px 0px rgba(0, 0, 0, 0.2);
+            position: relative;
+            border-radius: 5px;
+            overflow: hidden;
+            padding-top: 50px; /* 添加这行来适应.layer-toggler的高度 */
+        }
+        
+        .layer-toggler {
+            width: 50px;
+            height: 50px;
+            background-color: red;
+            position: absolute;
+            top: 0;
+            right: 0;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 10; /* 保证图层切换器始终在顶部 */
+        }
+        
+        .layers {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+            position: relative; /* 确保.layers在.layer-toggler的下方 */
+        }
+        
+        .layer-controller:hover .layers {
+            max-height: 300px;
+        }
+               
+        
+    </style>
+</head>
+<body>
+
+<div class="layer-controller">
+    <div class="layer-toggler">
+        ☰
+    </div>
+    <div class="layers">
+        <!-- 这里是一个简单的表格示例，您可以根据需要替换或扩展 -->
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>Points Num</th>
+                    <th>Color</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+</body>
+</html>
