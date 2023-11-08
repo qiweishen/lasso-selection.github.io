@@ -364,7 +364,7 @@ export function getGridHelper(vertices) {
     const planeDetails = calculateNormalAndCoplanarPoint(vertices);
     const planeNormal = planeDetails.planeNormal;
     const planePoint = planeDetails.avgPoint;
-    let gridHelper = new THREE.GridHelper(100, 100, 0x00ff00, 0x00ff00); // size and divisions can be adjusted as per need
+    let gridHelper = new THREE.GridHelper(100, 25, 0x808080, 0xFFFFFF); // size and divisions can be adjusted as per need
     let up = new THREE.Vector3(0, 1, 0);
     let quaternion = new THREE.Quaternion().setFromUnitVectors(up, planeNormal);
     gridHelper.quaternion.copy(quaternion);

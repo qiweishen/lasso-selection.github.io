@@ -9,7 +9,9 @@ let BlurrySelectedPoints;
 
 
 // Blurry selection
-export function blurrySelection(gridSize, blurryIntensity) {
+export function blurrySelection(gridSize, blurryIntensity, blurryColorMode, blurryColor, blurryOffsetMode) {
+    console.log(blurryColorMode);
+
     let isDrawing = false;
 
     let lassoVertices = [];
@@ -22,11 +24,21 @@ export function blurrySelection(gridSize, blurryIntensity) {
     const lasso = new THREE.Line(lineGeometry, lineMaterial);
 
     const PointGeometry = new THREE.BufferGeometry();
-    const PointMaterial = new THREE.PointsMaterial({
-        size: 8,
-        vertexColors: THREE.VertexColors,
-        sizeAttenuation: false
-    });
+    let PointMaterial;
+    if (blurryColorMode === "random") {
+        PointMaterial = new THREE.PointsMaterial({
+            size: 8,
+            vertexColors: THREE.VertexColors,
+            sizeAttenuation: false
+        });
+    } else if (blurryColorMode === "consistent") {
+        PointMaterial = new THREE.PointsMaterial({
+            size: 8,
+            color: blurryColor,
+            sizeAttenuation: false
+        });
+    }
+
     BlurrySelectedPoints = new THREE.Points(PointGeometry, PointMaterial);
     
     let remove3DPoints = [];
@@ -37,26 +49,26 @@ export function blurrySelection(gridSize, blurryIntensity) {
     // Functions for the listen of key B
     let isBKeyPressed = false;
     handleKeyB_down_Blurry = function(event) {
-        if (event.key === 'B' || event.keyCode === 66) {
+        if (event.key === "B" || event.keyCode === 66) {
             isBKeyPressed = true;
         }
     }
     handleKeyB_up_Blurry = function(event) {
-        if (event.key === 'B' || event.keyCode === 66) {
+        if (event.key === "B" || event.keyCode === 66) {
             isBKeyPressed = false;
         }
     }
 
     // Functions for the above eventListeners
     handleMouseDownBlurry = function(event) {
-        if (!event.shiftKey && isBKeyPressed && event.button === 1) { // B + Middle button => draw lasso shape / select POIs / add POIs
+        if (!event.shiftKey && isBKeyPressed && event.button === 1) { // B + Middle button => draw lasso shape / select points / add points
             isDrawing = true;
 
             lassoVertices = [];
             viewer.scene.scene.add(lasso);
 
             mouseTrajectory = [];
-        } else if (event.shiftKey && isBKeyPressed && event.button === 1) { // Shift + B + Middle button => remove POIs
+        } else if (event.shiftKey && isBKeyPressed && event.button === 1) { // Shift + B + Middle button => remove points
             isDrawing = true;
             remove3DPoints = [];
             
@@ -78,7 +90,7 @@ export function blurrySelection(gridSize, blurryIntensity) {
     }
 
     handleMouseUpBlurry = function(event) {
-        if ((!event.shiftKey && isBKeyPressed && event.button === 1) || (isBKeyPressed && event.button === 1)) { // B + Middle button => select POIs or Ctrl + B + Middle button => select / add POIs
+        if (!event.shiftKey && isBKeyPressed && event.button === 1) { // B + Middle button => select / add points
             isDrawing = false;
             lassoVertices.push(lassoVertices[0]);
             update3DLine();
@@ -98,17 +110,18 @@ export function blurrySelection(gridSize, blurryIntensity) {
             if (selected3DPoints.length > 0) {
                 selected3DPoints = tool.removeDuplicatePoints(selected3DPoints);
                 update3DPoints();
+                
                 viewer.scene.scene.add(BlurrySelectedPoints);
             }
 
             setTimeout(cleanLine, 200);
 
-        } else if (event.shiftKey && isBKeyPressed && event.button === 1) { // Shift + B + Middle button => remove POIs
+        } else if (event.shiftKey && isBKeyPressed && event.button === 1) { // Shift + B + Middle button => remove points
             isDrawing = false;
             lassoVertices.push(lassoVertices[0]);
             update3DLine();
 
-            mouseTrajectory = removeDuplicatePoints(mouseTrajectory)
+            mouseTrajectory = tool.removeDuplicatePoints(mouseTrajectory)
             const lassRays = getRaysInsideLasso();
             const raysFromMouse = lassRays.rays;
 
@@ -120,11 +133,13 @@ export function blurrySelection(gridSize, blurryIntensity) {
                         remove3DPoints.push(intersectedPoint[j]);
                 }
             }
-            remove3DPoints = removeDuplicatePoints(remove3DPoints);
-            selected3DPoints = removePoints(selected3DPoints, remove3DPoints);
-            
-            update3DPoints();
-            viewer.scene.scene.add(BlurrySelectedPoints);
+            if (remove3DPoints.length > 0) {
+                remove3DPoints = tool.removeDuplicatePoints(remove3DPoints);
+                selected3DPoints = tool.removePoints(selected3DPoints, remove3DPoints);
+                update3DPoints();
+                
+                viewer.scene.scene.add(BlurrySelectedPoints);
+            }
 
             setTimeout(cleanLine, 200);
         }
@@ -150,7 +165,7 @@ export function blurrySelection(gridSize, blurryIntensity) {
 
         const targetPoint = new THREE.Vector3(0, 0, -1).unproject(camera);
         const planeNormal = new THREE.Vector3().subVectors(targetPoint, camera.position).normalize();
-        const planeDistance = 0.1;
+        const planeDistance = camera.near * 5;
         const planePoint = camera.position.clone().add(planeNormal.clone().multiplyScalar(planeDistance));
         const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
 
@@ -204,30 +219,54 @@ export function blurrySelection(gridSize, blurryIntensity) {
 
         const positions = [];
         const colors = [];
-        for (let i = 0; i < numPoints; i++) {
-            positions[i * 3] = selected3DPoints[i].position.x;
-            positions[i * 3 + 1] = selected3DPoints[i].position.y;
-            positions[i * 3 + 2] = selected3DPoints[i].position.z;
 
-            // Random offset
-            // positions[i * 3] = selected3DPoints[i].position.x + offset_x;
-            // positions[i * 3 + 1] = selected3DPoints[i].position.y + offset_y;
-            // positions[i * 3 + 2] = selected3DPoints[i].position.z + offset_z;
+        if (blurryColorMode === "consistent" && !blurryOffsetMode) {
+            for (let i = 0; i < numPoints; i++) {
+                positions[i * 3] = selected3DPoints[i].position.x;
+                positions[i * 3 + 1] = selected3DPoints[i].position.y;
+                positions[i * 3 + 2] = selected3DPoints[i].position.z;
+            }
+        } else if (blurryColorMode === "random" && !blurryOffsetMode) {
+            for (let i = 0; i < numPoints; i++) {
+                positions[i * 3] = selected3DPoints[i].position.x;
+                positions[i * 3 + 1] = selected3DPoints[i].position.y;
+                positions[i * 3 + 2] = selected3DPoints[i].position.z;
 
-            // Random color
-            // let r = Math.random();
-            // let g = Math.random();
-            // let b = Math.random();
-            // colors[3 * i] = r;
-            // colors[3 * i + 1] = g;
-            // colors[3 * i + 2] = b;
+                // Random color
+                let r = Math.random();
+                let g = Math.random();
+                let b = Math.random();
+                colors[3 * i] = r;
+                colors[3 * i + 1] = g;
+                colors[3 * i + 2] = b;
+                PointGeometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+            }
+        } else if (blurryColorMode === "consistent" && blurryOffsetMode) {
+            for (let i = 0; i < numPoints; i++) {
+                // Random offset
+                positions[i * 3] = selected3DPoints[i].position.x + offset_x;
+                positions[i * 3 + 1] = selected3DPoints[i].position.y + offset_y;
+                positions[i * 3 + 2] = selected3DPoints[i].position.z + offset_z;
+            }
+        } else if (blurryColorMode === "random" && blurryOffsetMode) {
+            for (let i = 0; i < numPoints; i++) {
+                // Random offset
+                positions[i * 3] = selected3DPoints[i].position.x + offset_x;
+                positions[i * 3 + 1] = selected3DPoints[i].position.y + offset_y;
+                positions[i * 3 + 2] = selected3DPoints[i].position.z + offset_z;
 
-            // Average color
-            // Mesh
+                // Random color
+                let r = Math.random();
+                let g = Math.random();
+                let b = Math.random();
+                colors[3 * i] = r;
+                colors[3 * i + 1] = g;
+                colors[3 * i + 2] = b;
+                PointGeometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+            }
         }
 
         PointGeometry.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-        PointGeometry.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
         PointGeometry.computeBoundingSphere();
 
     }
@@ -255,19 +294,11 @@ export function blurrySelection(gridSize, blurryIntensity) {
     }
 
     function calculateOffset(boundingBoxSize) {
-        const MIN_MULTIPLIER = 1 / 10000;
-        const MAX_MULTIPLIER = 1 / 100;
-    
-        const logMin = Math.log10(0.1);
-        const logMax = Math.log10(1);
-        const logX = Math.log10(blurryIntensity);
-    
-        const normalizedLog = (logX - logMin) / (logMax - logMin);
-        const random = tool.gaussianRandom() * (boundingBoxSize / 1000);
+        const offsetFactor = 0.001 + 0.0055556 * (blurryIntensity - 0.1);
+        const randomFactor = (tool.gaussianRandom() * 0.5 + 0.5) * tool.randomSign();
+        const offset = (offsetFactor * boundingBoxSize) + randomFactor * offsetFactor * boundingBoxSize;
 
-        const offsetMultiplier = MIN_MULTIPLIER + (MAX_MULTIPLIER - MIN_MULTIPLIER) * normalizedLog;
-    
-        return ((boundingBoxSize * offsetMultiplier) + random) * tool.randomSign();
+        return offset;
     }
 
     function cleanLine() {
@@ -287,7 +318,9 @@ export function removeBlurryEventListeners() {
 
 
 // Remove blurred points
-export function removeBlurredPoints() {
+export function removeBlurredPoints(hasAlert=true) {
+    selected3DPoints = [];
     viewer.scene.scene.remove(BlurrySelectedPoints);
-    alert.windowAlert("Blurry points are cleaned.");
+    if (hasAlert)
+        alert.windowAlert("Blurry points are removed.");
 }

@@ -1,6 +1,6 @@
 import * as tool from "./tools.js";
 import * as alert from "./alert.js";
-import {handleVisibleChange, deleteRow} from "./gui.js";
+import {handleVisibleChange, updatePointsStats, updateGroupStats, deleteRow, createCell} from "./gui.js";
 
 
 
@@ -10,8 +10,8 @@ let LassoSelectedPoints;
 
 
 export function lassoSelection(gridSize) {
-    console.log("Selected points: ", selected3DPoints);
-    console.log("gridSize: ", gridSize);
+    // console.log("Selected points: ", selected3DPoints);
+    // console.log("gridSize: ", gridSize);
 
     // Lasso selection
     let isDrawing = false;
@@ -20,7 +20,7 @@ export function lassoSelection(gridSize) {
     const lineGeometry = new THREE.BufferGeometry();
     const lineMaterial = new THREE.LineBasicMaterial({
         color: 0xff0000, // Set line color to red
-        linewidth: 2,
+        linewidth: 6,
         side: THREE.DoubleSide
     });
     const lasso = new THREE.Line(lineGeometry, lineMaterial);
@@ -46,14 +46,14 @@ export function lassoSelection(gridSize) {
 
     // Functions for the above eventListeners
     handleMouseDownLasso = function(event) {
-        if (!event.shiftKey && event.button === 1) { // Middle button => draw lasso shape / select POIs / add POIs
+        if (!event.shiftKey && event.button === 1) { // Middle button => draw lasso shape / select points / add points
             isDrawing = true;
 
             lassoVertices = [];
             viewer.scene.scene.add(lasso);
 
             mouseTrajectory = [];
-        } else if (event.shiftKey && event.button === 1) { // Shift + Middle button => remove POIs
+        } else if (event.shiftKey && event.button === 1) { // Shift + Middle button => remove points
             isDrawing = true;
             remove3DPoints = [];
             
@@ -75,7 +75,7 @@ export function lassoSelection(gridSize) {
     }
 
     handleMouseUpLasso = function(event) {
-        if (!event.shiftKey && event.button === 1) { // Middle button => select POIs or Ctrl + Middle button => select / add POIs
+        if (!event.shiftKey && event.button === 1) { // Middle button => select points or Ctrl + Middle button => select / add points
             isDrawing = false;
             lassoVertices.push(lassoVertices[0]);
             update3DLine();
@@ -95,15 +95,16 @@ export function lassoSelection(gridSize) {
             }
             if (selected3DPoints.length > 0) {
                 selected3DPoints = tool.removeDuplicatePoints(selected3DPoints);
-                updateStats(selected3DPoints);
-                console.log("Selected points: ", selected3DPoints);
+                updatePointsStats(selected3DPoints);
+                // console.log("Selected points: ", selected3DPoints);
                 update3DPoints();
                 viewer.scene.scene.add(LassoSelectedPoints);
             }
 
             setTimeout(cleanLine, 200);  // Remove line after 200ms
+            // tool.getGridHelper(lassoVertices);
 
-        } else if (event.shiftKey && event.button === 1) { // Shift + Middle button => remove POIs
+        } else if (event.shiftKey && event.button === 1) { // Shift + Middle button => remove points
             isDrawing = false;
             lassoVertices.push(lassoVertices[0]);
             update3DLine();
@@ -123,8 +124,8 @@ export function lassoSelection(gridSize) {
             }
             remove3DPoints = tool.removeDuplicatePoints(remove3DPoints);
             selected3DPoints = tool.removePoints(selected3DPoints, remove3DPoints);
-            updateStats(selected3DPoints);
-            console.log("Left selected points: ", selected3DPoints);
+            updatePointsStats(selected3DPoints);
+            // console.log("Left selected points: ", selected3DPoints);
             update3DPoints();
             viewer.scene.scene.add(LassoSelectedPoints);
 
@@ -150,15 +151,12 @@ export function lassoSelection(gridSize) {
 
         const targetPoint = new THREE.Vector3(0, 0, -1).unproject(camera);
         const planeNormal = new THREE.Vector3().subVectors(targetPoint, camera.position).normalize();
-        const planeDistance = 0.1;
+        const planeDistance = camera.near * 5;
         const planePoint = camera.position.clone().add(planeNormal.clone().multiplyScalar(planeDistance));
         const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(planeNormal, planePoint);
 
         const point3D = new THREE.Vector3();
         const isIntersecting = rayCaster.ray.intersectPlane(plane, point3D);
-
-        // console.log("Window coordinates:", mouse);
-        // console.log("Intersection point:", point3D);
 
         return {point3D, mouse};
     }
@@ -254,13 +252,13 @@ export function removeLassoSelectedPoints(withAlert, keepSelection) {
             viewer.scene.scene.remove(LassoSelectedPoints);
             LassoSelectedPoints.geometry.dispose();
             LassoSelectedPoints.material.dispose();
-            updateStats(selected3DPoints);
+            updatePointsStats(selected3DPoints);
         } else {
             selected3DPoints = [];
             viewer.scene.scene.remove(LassoSelectedPoints);
             LassoSelectedPoints.geometry.dispose();
             LassoSelectedPoints.material.dispose();
-            updateStats(selected3DPoints);
+            updatePointsStats(selected3DPoints);
         }
         if (withAlert) {
             alert.windowAlert("All selected points are cleaned.");
@@ -271,17 +269,6 @@ export function removeLassoSelectedPoints(withAlert, keepSelection) {
         }
     }
     
-}
-    
-
-// Update stats
-export function updateStats(pointsList) {
-    const textElement = document.getElementById("lblSelectedPoints");
-    textElement.textContent = pointsList.length;
-}
-export function updateGroupStats(groupNumber) {
-    const textElement = document.getElementById("lblSelectedGroups");
-    textElement.textContent = groupNumber;
 }
 
 
@@ -305,10 +292,11 @@ export async function saveLassoSelectedPoints(SavedPointsSets) {
 
             updateGroupStats(Object.keys(SavedPointsSets).length);
             
-            toTable({userName, ectypePoints});
-            console.log(ectypePoints.material.name);
+            toTableRow(SavedPointsSets, userName);
+            // console.log(ectypePoints.material.name);
             alert.cleanInput();
             removeLassoSelectedPoints(false, false);
+            viewer.scene.scene.add(SavedPointsSets[userName])
         }
     } else {
         alert.windowAlert("No point is selected.");
@@ -317,38 +305,28 @@ export async function saveLassoSelectedPoints(SavedPointsSets) {
 
 
 // ToTable
-function toTable(dictionary) {
+export function toTableRow(dictionary, userName) {
     let tableBody = document.getElementById("tableBody");
-    
     let row = tableBody.insertRow();
     
-    let cell_0= row.insertCell(0);
-    cell_0.textContent = dictionary.userName;
+
+    createCell(row, userName);
+    createCell(row, dictionary[userName].geometry.attributes.position.count);
     
-    let cell_1 = row.insertCell(1);
-    cell_1.textContent = dictionary.ectypePoints.geometry.attributes.position.count;
+    // Assuming getColor() returns the correct color value
+    createCell(row, "", "color", alert.getColor());
 
-    let cell_2 = row.insertCell(2);
-    const colorBlock = document.createElement("div");
-    colorBlock.style.width = "75px";
-    colorBlock.style.height = "15px";
-    colorBlock.style.backgroundColor = alert.getColor();
-    cell_2.appendChild(colorBlock);
+    createCell(row, "", "checkbox", {
+        id: `${userName}-checkbox`,
+        checked: true,
+        changeHandler: handleVisibleChange
+    });
 
-    let cell_3 = row.insertCell(3);
-    const checkBox = document.createElement("input");
-    checkBox.type = "checkbox";
-    checkBox.id = dictionary.userName + "-checkbox";
-    checkBox.checked = false;
-    checkBox.addEventListener("change", handleVisibleChange);
-    cell_3.appendChild(checkBox);
-
-    let cell_4 = row.insertCell(4);
-    const button = document.createElement("button");
-    button.id = dictionary.userName + "-button";
-    button.textContent = "Delete";
-    button.addEventListener("click", deleteRow);
-    cell_4.appendChild(button);
+    createCell(row, "", "button", {
+        id: `${userName}-button`,
+        text: "Delete",
+        clickHandler: deleteRow
+    });
 
     
     setTimeout(() => {

@@ -21,14 +21,19 @@ gui.loadGUI();
 function loadData(){
     let scene = viewer.scene;
 
-    let dataPathOfficial = "./Potree_1.7/pointclouds/lion_takanawa/cloud.js"
-    let dataNameOfficial = "lion_takanawa";
+    // let dataPathOfficial = "../data/ahn2/tileconverted5/cloud.js"
+    // let dataNameOfficial = "AHN";
+
+    let dataPathOfficial = "../Potree_1.7/pointclouds/lion_takanawa/cloud.js"
+    let dataNameOfficial = "Lion";
+
 
     Potree.loadPointCloud(dataPathOfficial, dataNameOfficial, (data) => {
         scene.addPointCloud(data.pointcloud);
         // Set point cloud material
         let material = data.pointcloud.material;
         material.size = 1;
+        material.color = new THREE.Color(0xFFFFFF);
         // material.pointSizeType = Potree.PointSizeType.ADAPTIVE;
         material.pointSizeType = Potree.PointSizeType.FIXED;
         // Make point cloud fit to screen

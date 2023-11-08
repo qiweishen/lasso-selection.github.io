@@ -4,10 +4,14 @@ import * as alert from "./alert.js";
 
 
 
-let LassoToolMode = "None";
-let GridSize = 10; // unit: pixel on screen; default value: 10
+let LassoToolMode = false;
+let GridSize = 10; // unit: pixel on screen; default value: 10, it is suitable for the majority of cases
 let withAlert, keepSelection;
-let BlurryToolMode = "None";
+
+let BlurryToolMode = false;
+let BlurryColorMode = "consistent"; // default value: consistent
+let BlurryColor = "#000000"; // default value: black
+let BlurryOffsetMode = false;
 let BlurryIntensity = 0.5; // default value: 0.5
 
 let SavedPointsSets = {};
@@ -72,32 +76,32 @@ export function loadGUI(){
             </li>
 
             <div style="display: flex; justify-content: center; align-items: center;">
-                <div style="margin-top: 15px">Selected POIs: <span id="lblSelectedPoints" style="color: RGB(240, 140, 90)">0</span></div>
+                <div style="margin-top: 15px">Selected points: <span id="lblSelectedPoints" style="color: RGB(240, 140, 90)">0</span></div>
             </div>
 
             <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Operation instruction</span></div>
 
             <ul style="margin-left: 0px">
-                <li>Select POIs / Add POIs:
+                <li>Select points / Add points:
                     <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 5px">
                         <b><font color=white>Hold scroll wheel</font></b>
                     </ul>
                 </li>
-                <li>Remove selected POIs partly:
+                <li>Remove selected points partly:
                     <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 10px">
                     <b><font color=white>Shift + Hold scroll wheel</font></b>
                     </ul>
                 </li>
             </ul>
     
-            <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Selection parameters</span></div>
+            <!-- <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Selection parameters</span></div>
     
             <li>
                 <span>Selection grid size</span>: <span id="lblLassoSensitivity">10</span><div id="sldLassoSensitivity"></div>
                 <p><b><font color=white>Controls selection & blurry tools.</font></b></p>
                 <p>For optical performance, set larger number when selecting large area.</p>
                 <p>For selection accuracy, zoom in and set small number to refine the selection.</p>
-            </li>
+            </li> -->
 
             <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Export selected groups</span></div>
 
@@ -130,12 +134,12 @@ export function loadGUI(){
             <div class="divider" style="margin-top: 10px; margin-bottom: 10px; font-size: 15px"><span>Operation instruction</span></div>
             
             <ul style="margin-left: 0px">
-                <li>Select POIs / Add POIs:
+                <li>Select points / Add points:
                     <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 5px">
                         <b><font color=white>B + Hold scroll wheel</font></b>
                     </ul>
                 </li>
-                <li>Remove selected POIs partly:
+                <li>Remove selected points partly:
                     <ul style="margin-left: -30px; margin-top: 5px; margin-bottom: 10px">
                     <b><font color=white>Shift + B + Hold scroll wheel</font></b>
                     </ul>
@@ -143,12 +147,34 @@ export function loadGUI(){
             </ul>
 
             <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Blurring parameters</span></div>
-    
-            <li>
-                <span>Blurry intensity</span>: <span id="lblBlurryIntensity">0.5</span><div id="sldBlurryIntensity"></div>
-                <p>Please set the intensity of the blurring effect before blurry.</p>
-                <p>As the blur intensity increases, the performance of the blurring effect is enhanced.</p>
-            </li>
+            
+            <ul style="margin-left: 0px">
+                <li>
+                    <div style="margin-top: 15px; margin-bottom: 15px">Set consistent blurry color (Default):
+                        <div style="margin-top: 10px; margin-bottom: 15px; margin-left: 15px">    
+                            <input type="text" id="custom-blurryColor">
+                        </div>
+                    </div>
+
+                    <div style="margin-top: 15px; margin-bottom: 10px">Or random blurry color:
+                        <div style="margin-top: 5px; margin-left: 15px">
+                            <input type="checkbox" id="random-blurryColor" name="random-blurryColor" value="random-blurryColor" unchecked>
+                            <label for="random-blurryColor">Random blurry color</label>
+                        </div>
+                    </div>
+                </li>
+
+                <li>
+                    <div style="margin-bottom: 10px">
+                        <input type="checkbox" id="random-blurryOffset" name="random-blurryOffset" value="random-blurryOffset" unchecked>
+                        <label for="random-blurryOffset">Random spatial offset</label>
+                    </div>
+
+                    <div>
+                        <span>Spatial offset intensity</span>: <span id="lblBlurryIntensity">0.5</span><div id="sldBlurryIntensity"></div>
+                    </div>
+                </li>
+            </ul>
         `);
     
         // Add event listener to checkbox
@@ -156,11 +182,17 @@ export function loadGUI(){
             // jQuery 代码 jQuery code
             $("#lasso").change(function() {
                 if (this.checked) {
-                    LassoToolMode = "lasso";
+                    let blurryButton = document.getElementById("blurry");
+                    if (blurryButton.checked) {
+                        blurryButton.checked = false;
+                        BlurryToolMode = false;
+                        updateBlurryToolMode(false);
+                    }
+                    LassoToolMode = true;
                 } else {
-                    LassoToolMode = "disableLasso";
+                    LassoToolMode = false;
                 }
-                updateToolMode();
+                updateLassoToolMode(true);
             });
 
             $("#saveButton").click(function() {
@@ -171,36 +203,88 @@ export function loadGUI(){
                 lasso.removeLassoSelectedPoints(withAlert=true, keepSelection=false);
             });
     
-            $("#sldLassoSensitivity").slider({
-                value: 10, // Default value
-                min: 5,
-                max: 20,
-                step: 1,
-                slide: function(event, ui) {
-                    $("#lblLassoSensitivity").text(ui.value);
-                    GridSize = ui.value;
-                    // reload lasso selection
-                    lasso.removeLassoEventListeners();
-                    lasso.removeLassoSelectedPoints(withAlert=false, keepSelection=true);
-                    lasso.lassoSelection(GridSize);
-                }
-            });
+            // $("#sldLassoSensitivity").slider({
+            //     value: 10, // Default value
+            //     min: 5,
+            //     max: 20,
+            //     step: 1,
+            //     slide: function(event, ui) {
+            //         $("#lblLassoSensitivity").text(ui.value);
+            //         GridSize = ui.value;
+            //         // reload lasso selection
+            //         lasso.removeLassoEventListeners();
+            //         lasso.removeLassoSelectedPoints(withAlert=false, keepSelection=true);
+            //         lasso.lassoSelection(GridSize);
+            //     }
+            // });
 
             $("#exportButton").click(function() {
-                alert.exportWindow();
+                if (Object.keys(SavedPointsSets).length === 0) {
+                    alert.windowAlert("No group is selected.");
+                } else {
+                    alert.exportWindow();
+                }
             });
 
             $("#blurry").change(function() {
                 if (this.checked) {
-                    BlurryToolMode = "blurry";
+                    let lassoButton = document.getElementById("lasso");
+                    if (lassoButton.checked) {
+                        lassoButton.checked = false;
+                        LassoToolMode = false;
+                        updateLassoToolMode(false);
+                    }
+                    BlurryToolMode = true;
                 } else {
-                    BlurryToolMode = "disableBlurry";
+                    BlurryToolMode = false;
                 }
-                updateToolMode();
+                updateBlurryToolMode(true);
             });
 
             $("#cleanBlurryButton").click(function() {
                 blurry.removeBlurredPoints();
+            });
+
+            $("#custom-blurryColor").spectrum({
+                preferredFormat: "hex",
+                showInput: true,
+                color: "#000000",
+            
+                change: function(color) {
+                    const hex = color.toHexString();
+                    BlurryColor = hex;
+                    alert.windowAlert("Set blurry color to " + hex + ".")
+                    blurry.removeBlurredPoints(false);
+                    updateBlurryToolMode(false);
+                }
+            });
+
+            $("#random-blurryColor").change(function() {
+                if (this.checked) {
+                    BlurryColorMode = "random";
+                    alert.windowAlert("Random blurry color is enabled.")
+                    blurry.removeBlurredPoints(false);
+                    updateBlurryToolMode(false);
+                } else {
+                    BlurryToolMode = "consistent";
+                    alert.windowAlert("Random blurry color is disabled.")
+                    blurry.removeBlurredPoints(false);
+                    updateBlurryToolMode(false);
+                }
+            });
+
+            $("#random-blurryOffset").change(function() {
+                if (this.checked) {
+                    BlurryOffsetMode = true;
+                    alert.windowAlert("Random spatial offset is enabled.")
+                    blurry.removeBlurredPoints(false);
+                    updateBlurryToolMode(false);
+                } else {
+                    BlurryOffsetMode = false;
+                    alert.windowAlert("Random spatial offset is disabled.")
+                    blurry.removeBlurredPoints(false);
+                    updateBlurryToolMode(false);
+                }
             });
 
             $("#sldBlurryIntensity").slider({
@@ -211,39 +295,51 @@ export function loadGUI(){
                 slide: function(event, ui) {
                     $("#lblBlurryIntensity").text(ui.value);
                     BlurryIntensity = ui.value;
+                    blurry.removeBlurredPoints(false);
+                    updateBlurryToolMode(false);
                 }
             });
         });
         
         versionSection.first().click(() => versionContent.slideToggle());
-        versionSection.insertBefore($('#menu_appearance'));
+        versionSection.insertBefore($("#menu_appearance"));
 
         selectionSection.first().click(() => selectionContent.slideToggle());
-        selectionSection.insertBefore($('#menu_appearance'));
+        selectionSection.insertBefore($("#menu_appearance"));
 
         blurrySection.first().click(() => blurryContent.slideToggle());
-        blurrySection.insertBefore($('#menu_appearance'));
+        blurrySection.insertBefore($("#menu_appearance"));
     });
 }
 
 
-function updateToolMode() {
-    if (BlurryToolMode === "blurry") {
-        blurry.blurrySelection(GridSize, BlurryIntensity);
-        alert.windowAlert("Blurry tool is enabled.")
-    } else if (BlurryToolMode === "disableBlurry") {
-        blurry.removeBlurredPoints();
-        blurry.removeBlurryEventListeners();
-        alert.windowAlert("Blurry tool is disabled.")
-    }
-    
-    if (LassoToolMode === "lasso") {
+function updateLassoToolMode(showAlert) {  
+    if (LassoToolMode) {
         lasso.lassoSelection(GridSize);
-        alert.windowAlert("Lasso selection is enabled.")
-    } else if (LassoToolMode === "disableLasso") {
+        if (showAlert) {
+            alert.windowAlert("Lasso selection is enabled.")
+        }
+    } else if (!LassoToolMode) {
         lasso.removeLassoSelectedPoints(withAlert=false, keepSelection=false);
         lasso.removeLassoEventListeners();
-        alert.windowAlert("Lasso selection is disabled.")
+        if (showAlert) {
+            alert.windowAlert("Lasso selection is disabled.")
+        }
+    }
+}
+
+function updateBlurryToolMode(showAlert) {
+    if (BlurryToolMode) {
+        blurry.blurrySelection(GridSize, BlurryIntensity, BlurryColorMode, BlurryColor, BlurryOffsetMode);
+        if (showAlert) {
+            alert.windowAlert("Blurry tool is enabled.")
+        }
+    } else if (!BlurryToolMode) {
+        blurry.removeBlurredPoints();
+        blurry.removeBlurryEventListeners();
+        if (showAlert) {
+            alert.windowAlert("Blurry tool is disabled.")
+        }
     }
 }
 
@@ -260,54 +356,77 @@ export function handleVisibleChange(event) {
 }
 
 
+// Update stats
+export function updatePointsStats(pointsList) {
+    const textElement = document.getElementById("lblSelectedPoints");
+    textElement.textContent = pointsList.length;
+}
+
+export function updateGroupStats(groupNumber) {
+    const textElement = document.getElementById("lblSelectedGroups");
+    textElement.textContent = groupNumber;
+}
+
+
 export function deleteRow(event) {
     const button = event.target;
     const userName = button.id.split("-")[0];
+    
+    let row = button.parentNode.parentNode;
+    row.parentNode.removeChild(row);
+
     const points = SavedPointsSets[userName];
     viewer.scene.scene.remove(points);
     delete SavedPointsSets[userName];
-    if (Object.keys(SavedPointsSets).length > 0) {
-        updateTable(SavedPointsSets);
-    }
+    
+    updateTable(SavedPointsSets);
+    updateGroupStats(Object.keys(SavedPointsSets).length);
 }
+
 
 function updateTable(dictionary) {
     let tableBody = document.getElementById("tableBody");
-    tableBody.innerHTML = "";
+
+    while (tableBody.firstChild) {
+        tableBody.removeChild(tableBody.firstChild);
+    }
     
-    let keysReversed = Object.keys(dictionary).reverse();
-    for (let key of keysReversed) {
-        let row = tableBody.insertRow();
-        
-        console.log(dictionary[key].material.color);
-        
-        let cell_0 = row.insertCell(0);
-        cell_0.textContent = key;
-        
-        let cell_1 = row.insertCell(1);
-        cell_1.textContent = dictionary[key].geometry.attributes.position.count;
+    for (let key in dictionary) {
+        lasso.toTableRow(dictionary, key);
+    }
+}
 
-        let cell_2 = row.insertCell(2);
-        const colorBlock = document.createElement("div");
-        colorBlock.style.width = "75px";
-        colorBlock.style.height = "15px";
-        colorBlock.style.backgroundColor = "#" + dictionary[key].material.color.getHex();
-        cell_2.appendChild(colorBlock);
 
-        let cell_3 = row.insertCell(3);
-        const checkBox = document.createElement("input");
-        checkBox.type = "checkbox";
-        checkBox.id = key + "-checkbox";
-        checkBox.checked = false;
-        checkBox.addEventListener("change", handleVisibleChange);
-        cell_3.appendChild(checkBox);
-
-        let cell_4 = row.insertCell(4);
-        const button = document.createElement("button");
-        button.id = key + "-button";
-        button.textContent = "Delete";
-        button.addEventListener("click", deleteRow);
-        cell_4.appendChild(button);
+export function createCell(row, text, type="text", additionalData=null) {
+    let cell = row.insertCell();
+    switch (type) {
+        case "text":
+            cell.textContent = text;
+            break;
+        case "color":
+            const colorBlock = document.createElement("div");
+            colorBlock.style.width = "75px";
+            colorBlock.style.height = "15px";
+            colorBlock.style.backgroundColor = additionalData;
+            cell.appendChild(colorBlock);
+            break;
+        case "checkbox":
+            const checkBox = document.createElement("input");
+            checkBox.type = "checkbox";
+            checkBox.id = additionalData.id;
+            checkBox.checked = additionalData.checked;
+            checkBox.addEventListener("change", additionalData.changeHandler);
+            cell.appendChild(checkBox);
+            break;
+        case "button":
+            const button = document.createElement("button");
+            button.id = additionalData.id;
+            button.textContent = additionalData.text;
+            button.addEventListener("click", additionalData.clickHandler);
+            cell.appendChild(button);
+            break;
+        default:
+            cell.textContent = text;
     }
 }
 
@@ -317,9 +436,7 @@ export function downloadData() {
     const blob = new Blob([jsonData], {type: "application/json"});
     const url = URL.createObjectURL(blob);
 
-    const now = new Date();
-
-    const a = document.createElement('a');
+    const a = document.createElement("a");
     a.href = url;
     a.download = "data.json";
     a.click();
