@@ -86,7 +86,7 @@ export function getColor() {
 export function exportWindow() {
     const alert = document.getElementById("export-windows");
     const download = document.getElementById("download-button");
-    const storage = document.getElementById("storage-button");
+    // const storage = document.getElementById("storage-button");
     const cancel = document.getElementById("cancel-button");
     showAlert();
 
@@ -108,16 +108,16 @@ export function exportWindow() {
         }, 1250);
     }, {once: true});
 
-    storage.addEventListener("click", function() {
-        storageData();
+    // storage.addEventListener("click", function() {
+    //     storageData();
 
-        setTimeout(() => {
-            alert.style.transform = "translate(-50%, -110%)";
-        }, 250);
-        setTimeout(() => {
-            alert.style.display = "none";
-        }, 1250);
-    }, {once: true});
+    //     setTimeout(() => {
+    //         alert.style.transform = "translate(-50%, -110%)";
+    //     }, 250);
+    //     setTimeout(() => {
+    //         alert.style.display = "none";
+    //     }, 1250);
+    // }, {once: true});
 
     cancel.addEventListener("click", function() {
         setTimeout(() => {

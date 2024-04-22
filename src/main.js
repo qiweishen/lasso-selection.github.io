@@ -21,8 +21,11 @@ gui.loadGUI();
 function loadData(){
     let scene = viewer.scene;
 
-    // let dataPathOfficial = "../data/ahn2/tileconverted5/cloud.js"
-    // let dataNameOfficial = "AHN";
+    // let dataPathOfficial = "../data/AHN/C_51CN2_AHN3/metadata.json"
+    // let dataNameOfficial = "AHN3";
+
+    // let dataPathOfficial = "../data/AHN/tileconverted5/cloud.js"
+    // let dataNameOfficial = "AHN2";
 
     let dataPathOfficial = "../Potree_1.7/pointclouds/lion_takanawa/cloud.js"
     let dataNameOfficial = "Lion";

@@ -20,10 +20,18 @@ export function lassoSelection(gridSize) {
     const lineGeometry = new THREE.BufferGeometry();
     const lineMaterial = new THREE.LineBasicMaterial({
         color: 0xff0000, // Set line color to red
-        linewidth: 6,
+        linewidth: 1,
         side: THREE.DoubleSide
     });
     const lasso = new THREE.Line(lineGeometry, lineMaterial);
+    // const lineGeometry = new THREE.BufferGeometry();
+    // const line = new THREE.MeshLine();
+    // line.setGeometry(geometry);
+    // const lineMaterial = new MeshLineMaterial({
+    //     color: new THREE.Color(0xff0000),
+    //     lineWidth: 600
+    // });
+    // const lasso = new THREE.Mesh(line.geometry, material);
     
     const PointGeometry = new THREE.BufferGeometry();
     const PointMaterial = new THREE.PointsMaterial({
@@ -309,12 +317,11 @@ export function toTableRow(dictionary, userName) {
     let tableBody = document.getElementById("tableBody");
     let row = tableBody.insertRow();
     
-
     createCell(row, userName);
     createCell(row, dictionary[userName].geometry.attributes.position.count);
     
-    // Assuming getColor() returns the correct color value
-    createCell(row, "", "color", alert.getColor());
+    console.log(dictionary[userName].material.color.getHexString());
+    createCell(row, "", "color", "#" + dictionary[userName].material.color.getHexString());
 
     createCell(row, "", "checkbox", {
         id: `${userName}-checkbox`,

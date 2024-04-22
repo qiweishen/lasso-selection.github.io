@@ -24,15 +24,15 @@ export function loadGUI(){
         viewer.toggleSidebar();
 
         let versionSection = $(`
-        <h3 id="menu_version" class="accordion-header ui-widget"><span>Version - Blurry & Selection tools</span></h3>
+        <h3 id="menu_version" class="accordion-header ui-widget"><span>Project</span></h3>
         <div class="accordion-content ui-widget pv-menu-list"></div>
         `);
         let versionContent = versionSection.last();
         versionContent.html(`
-        <p style="margin-top: -15px; text-align: center; font-size: 15px"><br><b><font color=yellow>Last modified: 2023.11.1</font></b></p>
-        <p style="margin-top: -10px; margin-bottom: 15px; text-align: center; font-size: 15px"><br><font color=white>Group 4, Synthesis Project 2023</font></p>
+        <!-- <p style="margin-top: -15px; text-align: center; font-size: 15px"><br><b><font color=yellow>Last modified: 2023.11.1</font></b></p> -->
+        <p style="margin-top: -10px; margin-bottom: 15px; text-align: center; font-size: 15px"><br><font color=white>Synthesis Project 2023</font></p>
 
-        <div class="divider" style="margin-top: 10px; margin-bottom: 10px; font-size: 15px"><span>To do list</span></div>
+        <!-- <div class="divider" style="margin-top: 10px; margin-bottom: 10px; font-size: 15px"><span>To do list</span></div>
 
         <ul style="margin-left: 0px">
             <li style="margin-top: 5px; margin-bottom: 10px">
@@ -47,7 +47,7 @@ export function loadGUI(){
             <li style="margin-top: 5px; margin-bottom: 10px">
                 ......
             </li>
-        </ul>
+        </ul> -->
         `);
 
         let selectionSection = $(`
@@ -94,14 +94,14 @@ export function loadGUI(){
                 </li>
             </ul>
     
-            <!-- <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Selection parameters</span></div>
+            <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Selection parameters</span></div>
     
             <li>
                 <span>Selection grid size</span>: <span id="lblLassoSensitivity">10</span><div id="sldLassoSensitivity"></div>
                 <p><b><font color=white>Controls selection & blurry tools.</font></b></p>
                 <p>For optical performance, set larger number when selecting large area.</p>
                 <p>For selection accuracy, zoom in and set small number to refine the selection.</p>
-            </li> -->
+            </li>
 
             <div class="divider" style="margin-top: 15px; margin-bottom: 10px; font-size: 15px"><span>Export selected groups</span></div>
 
@@ -203,20 +203,20 @@ export function loadGUI(){
                 lasso.removeLassoSelectedPoints(withAlert=true, keepSelection=false);
             });
     
-            // $("#sldLassoSensitivity").slider({
-            //     value: 10, // Default value
-            //     min: 5,
-            //     max: 20,
-            //     step: 1,
-            //     slide: function(event, ui) {
-            //         $("#lblLassoSensitivity").text(ui.value);
-            //         GridSize = ui.value;
-            //         // reload lasso selection
-            //         lasso.removeLassoEventListeners();
-            //         lasso.removeLassoSelectedPoints(withAlert=false, keepSelection=true);
-            //         lasso.lassoSelection(GridSize);
-            //     }
-            // });
+            $("#sldLassoSensitivity").slider({
+                value: 10, // Default value
+                min: 5,
+                max: 20,
+                step: 1,
+                slide: function(event, ui) {
+                    $("#lblLassoSensitivity").text(ui.value);
+                    GridSize = ui.value;
+                    // reload lasso selection
+                    lasso.removeLassoEventListeners();
+                    lasso.removeLassoSelectedPoints(withAlert=false, keepSelection=true);
+                    lasso.lassoSelection(GridSize);
+                }
+            });
 
             $("#exportButton").click(function() {
                 if (Object.keys(SavedPointsSets).length === 0) {
