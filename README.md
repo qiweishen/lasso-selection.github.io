@@ -1,5 +1,5 @@
 # Potree lasso selection
-This repository is for GEO1101 Group4, which contains the source code of the selection tool, layers control system, and anonymization part.
+This repository is for **Pointcloud based anatomy**, which contains the source code of the selection tool, layers control system, and anonymization part.
 # How to use it
 Clone this repository, and implement the `./src/main.html` on your local server, a Potree web viewer with lasso tool function will start. And the operation instructions can be found on the side panel.
 # Selection tool
