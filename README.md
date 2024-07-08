@@ -11,4 +11,6 @@ A description to be added...
 # Framework
 This part is adapted from [Potree v1.7](https://github.com/potree/potree/tree/1.7) and [Three.js](https://threejs.org/).
 # Demo
-You can visit a demo of the current version [here](https://qiweishen.github.io/potree-lasso-selection.io/). ATTENTION: There is no point cloud object example loaded in the online demo (will be solved soon), but the lasso function is fully enabled.
+You can reach a demo of the current version [here](https://qiweishen.github.io/potree-lasso-selection.io/). ATTENTION: There is no point cloud object example loaded in the online demo (will be solved soon), but the lasso function is fully enabled.
+# Demo video
+You can also view this [video](https://youtu.be/34-LOUG-9dg) which includes the instructions for all the above functionalities.
